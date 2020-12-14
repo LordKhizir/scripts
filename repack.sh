@@ -1,15 +1,12 @@
 #Repack
-#For each subfolder in current folder, extrar RAR files, remove them, and repack all content as .7z
-#TODO: Expand with support for .zip - YAGNI
+#For each subfolder in current folder, repack all content as .7z
+#Extra for OSX - dot_clean to remove .fu extra file
+#Extra for OSX - At 7za, -xr!.DS_Store to remove .DS_Store file
+
 dir=`pwd`
+dot_clean .
 for folder in */
-  do cd "$folder"
-  echo "Processing folder [$folder]"
-  for rarfile in *.rar
-    do unrar x "$rarfile"
-    rm "$rarfile"
-  done
-  cd "$dir"
-  7za a -r -t7z -mx=9 "${folder%/}.7z" "$folder"
-  rm -r "$folder"
+  do
+    7za a -r -t7z -mx=9 -xr!.DS_Store "${folder%/}.7z" "$folder"
+    rm -r "$folder"
 done
