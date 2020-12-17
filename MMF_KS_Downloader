@@ -1,0 +1,58 @@
+// ==UserScript==
+// @name         MMF_KS_Downloader
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  Download Kickstarter files from MyMiniFactory
+// @author       You
+// @match        https://www.myminifactory.com/library*
+// @grant        none
+// ==/UserScript==
+
+'use strict';
+
+let cartMenuOption = document.querySelector("#top-bar-basket");
+cartMenuOption.insertAdjacentHTML('afterend', "<button id='addHackButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.addHack()'>Add hack</button>");
+
+// TODO - Add support for more than 1 Kickstarter campaign - right now it only supports ONE
+window.addHack = function ()
+{
+    var campaign = document.querySelector('#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.user-group-title > i');
+    campaign.insertAdjacentHTML("afterend","<button style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload()'>Full Download</button>");
+    document.getElementById('addHackButton').remove();
+};
+
+let selectorForFiles = '#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.container-objects > ul > li > div';
+window.fullDownload = async function () {
+    let allDownloads = document.querySelectorAll(selectorForFiles);
+    if (confirm('Are you sure you want to download all ' + allDownloads.length + ' elements?')) {
+        for (var i=0;i<allDownloads.length;i=i+1) {
+            let urls = allDownloads[i].querySelectorAll('a');
+            let image = allDownloads[i].querySelector('img');
+            let name = allDownloads[i].querySelector('span').textContent;
+            console.log('Downloading file ' + i + ': ' + name);
+
+            await window.fileDownload(image.src, name);
+            await window.fileDownload(urls[1].href, name + '.zip'); //TODO: Infer file extension
+            console.log('Downloaded completed ' + i);
+        }
+    }
+};
+
+// TODO - Show progress - Using this: https://javascript.info/fetch-progress
+window.fileDownload = async function(url,filename) {
+    await fetch(url).then(t => {
+        return t.blob().then(file => {
+            var a = document.createElement("a");
+            var url = URL.createObjectURL(file);
+            a.href=url;
+            a.download = filename;
+            console.log("Saving " + filename);
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 0);
+        });
+    });
+};
