@@ -16,34 +16,52 @@ cartMenuOption.insertAdjacentHTML("afterend", "<button id='addHackButton' style=
 
 window.addHack = function ()
 {
-    var campaign = document.querySelector("#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.user-group-title > i");
-    campaign.insertAdjacentHTML("afterend","<button id='fullDownloadButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload()'>Full Download</button>");
+    var campaigns = document.querySelectorAll('#container-campaigns div.user-group-title > i');
+    campaigns.forEach(function(campaign) {
+            campaign.insertAdjacentHTML("afterend","<button class='fullDownloadButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload(this)'>Full Download</button>");
+    });
     document.getElementById("addHackButton").remove();
+            var feedback = document.createElement("div");
+        feedback.innerHTML = `
+<div id='feedback' style='display:none; z-index: 9; margin: 30px; background: #A0D3E8; border:2px; border-color: black; position:fixed; bottom:0; left: 0; padding: 5px'>
+<span id='feedbackLine1'></span>
+<br>
+<span id='feedbackLine2'></span>
+</div>`;
+        document.body.appendChild(feedback);
 };
 
-let selectorForFiles = "#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.container-objects > ul > li > div";
-window.fullDownload = async function () {
-    let allDownloads = document.querySelectorAll(selectorForFiles);
-    if (confirm("Are you sure you want to download all " + allDownloads.length + " elements?")) {
-        var feedback = document.createElement("div");
-        feedback.innerHTML = "<div id='feedback' style='z-index: 9; margin: 30px; background: #A0D3E8; border:2px; border-color: black; position:absolute; top:50%; left: 50%; padding: 5px'><span id='feedbackLine1'></span><br><span id='feedbackLine2'></span></div>";
-        document.body.appendChild(feedback);
+let feedbackSelector = "#feedback";
+let selectorForFiles = "div.container-objects li.li-object-group div.object-user-group";
+let campaignTitleSelector = "p.campaign-title";
+window.fullDownload = async function (downloadButton) {
+    let parent = downloadButton.closest('li.li-user-group');
+    let campaign = parent.closest(".campaign-card");
 
+    let allDownloads = parent.querySelectorAll(selectorForFiles);
+    if (confirm("Are you sure you want to download all " + allDownloads.length + " elements?")) {
+        let campaignNameArray = cleanStringForFilename(campaign.querySelector(campaignTitleSelector).textContent.trim()).split(" by ");
+        let campaignName = campaignNameArray[1] + " KS - " + campaignNameArray[0];
+        makeCampaignFile(campaignName);
+
+        let feedback = document.getElementById("feedback");
+        feedback.style.display = "block";
         var numDownloads = allDownloads.length;
         for (var i=0;i<numDownloads;i=i+1) {
-            let urls = allDownloads[i].querySelectorAll('a');
+            let urls = allDownloads[i].querySelectorAll('a.mmfgreen');
             let image = allDownloads[i].querySelector('img');
-            let name = allDownloads[i].querySelector('span').textContent;
+            let name = allDownloads[i].querySelector('.object-name').textContent;
             setFeedback(1, "Downloading file " + (i+1) + "/" + numDownloads + " - " + name);
 
             // First, get content
-            var savedFilename = await window.fileDownload(urls[1].href);
+            var savedFilename = await window.fileDownload(urls[0].href, name);
 
             // Now, compute WHICH image to download, and name to store it
             await window.fileDownload(getFullSizeImageURL(image.src),savedFilename);
 
             console.log('Downloaded completed ' + i);
         }
+        feedback.style.display = "none";
     }
 };
 
@@ -55,12 +73,31 @@ function setFeedback(lineNumber, messageText) {
     document.getElementById("feedbackLine" + lineNumber).innerHTML = messageText;
 }
 
+function cleanStringForFilename(filenameToUse) {
+    return filenameToUse.replace(/[/\\?%*:|"<>]/g, '');
+}
+
 function getFilenameAndExtension(url) {
     // First, trim extra parameters (if present)
     var filteredUrl = url.toString().split("?")[0]
     // then get everything after last /
     filteredUrl=filteredUrl.substring(filteredUrl.lastIndexOf('/') + 1)
     return filteredUrl;
+}
+
+function makeCampaignFile(savedFilename) {
+    let file = new Blob([""], {type: "text/plain"});
+
+    var a = document.createElement("a");
+    var objectURL = URL.createObjectURL(file);
+    a.href=objectURL;
+    a.download = savedFilename + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(objectURL);
+    }, 0);
 }
 
 window.fileDownload = async function(url, filenameToUse) {
@@ -91,6 +128,7 @@ window.fileDownload = async function(url, filenameToUse) {
     var savedFilename = getFilenameAndExtension(response.url);
     // If we have a filenameToUse, use it, but keep extension
     if (filenameToUse) {
+        filenameToUse = cleanStringForFilename(filenameToUse);
         // If filenameToUse has an extension, remove it ... then add the actual one
         savedFilename=filenameToUse.split(".")[0] + savedFilename.substring(savedFilename.lastIndexOf("."));
     }
