@@ -1,0 +1,5 @@
+#do7z
+#For each file in current folder, create a 7z file
+for file in *.*
+  do 7z a -t7z -mx=9 "${file%.*}.7z" "$file"
+done
