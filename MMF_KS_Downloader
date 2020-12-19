@@ -39,10 +39,11 @@ window.fullDownload = async function (downloadButton) {
     let campaign = parent.closest(".campaign-card");
 
     let allDownloads = parent.querySelectorAll(selectorForFiles);
+
     if (confirm("Are you sure you want to download all " + allDownloads.length + " elements?")) {
         let campaignNameArray = cleanStringForFilename(campaign.querySelector(campaignTitleSelector).textContent.trim()).split(" by ");
         let campaignName = campaignNameArray[1] + " KS - " + campaignNameArray[0];
-        makeCampaignFile(campaignName);
+        let filePrefix = "[" + campaignName + "]"; // TODO improve with GUID
 
         let feedback = document.getElementById("feedback");
         feedback.style.display = "block";
@@ -54,7 +55,7 @@ window.fullDownload = async function (downloadButton) {
             setFeedback(1, "Downloading file " + (i+1) + "/" + numDownloads + " - " + name);
 
             // First, get content
-            var savedFilename = await window.fileDownload(urls[0].href, name);
+            var savedFilename = await window.fileDownload(urls[0].href, filePrefix + name);
 
             // Now, compute WHICH image to download, and name to store it
             await window.fileDownload(getFullSizeImageURL(image.src),savedFilename);
@@ -62,6 +63,7 @@ window.fullDownload = async function (downloadButton) {
             console.log('Downloaded completed ' + i);
         }
         feedback.style.display = "none";
+        makeCampaignFile(campaignName, filePrefix);
     }
 };
 
@@ -85,13 +87,35 @@ function getFilenameAndExtension(url) {
     return filteredUrl;
 }
 
-function makeCampaignFile(savedFilename) {
-    let file = new Blob([""], {type: "text/plain"});
+function makeCampaignFile(campaignName, filePrefix) {
+    let content = "";
+    content=content.concat('#Post-download process script for ', campaignName, '\n');
+    content=content.concat('#Create new dir and move everything there\n');
+    content=content.concat('mkdir "', campaignName, '"\n');
+    content=content.concat('mv "', filePrefix, '"* "', campaignName, '"\n');
+    content=content.concat('cd "', campaignName, '"\n');
+    content=content.concat('#Process all ZIP files\n');
+    content=content.concat('for zipfile in *.zip\n');
+    content=content.concat('  do\n');
+    content=content.concat('    echo "Processing ZIP file [$zipfile]"\n');
+    content=content.concat('    filename=$(echo "$zipfile" | sed -e \'s/\.[^.]*$//\')\n');
+    content=content.concat('    mkdir "$filename"\n');
+    content=content.concat('    unzip "$zipfile" -d "$filename"\n');
+    content=content.concat('    #Repack with 7z\n');
+    content=content.concat('    7za a -r -t7z -mx=9 -xr!.DS_Store "${filename%/}.7z" "$filename"\n');
+    content=content.concat('    #Remove dir and contents\n');
+    content=content.concat('    rm -r "$filename"\n');
+    content=content.concat('    #Remove zipfile\n');
+    content=content.concat('    rm "$zipfile"\n');
+    content=content.concat('  done\n');
+    content=content.concat('cd ..\n');
+
+    let file = new Blob([content], {type: "text/plain;charset=utf-8"});
 
     var a = document.createElement("a");
     var objectURL = URL.createObjectURL(file);
     a.href=objectURL;
-    a.download = savedFilename + ".txt";
+    a.download = campaignName + ".sh";
     document.body.appendChild(a);
     a.click();
     setTimeout(function() {
