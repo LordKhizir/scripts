@@ -11,48 +11,95 @@
 'use strict';
 
 let cartMenuOption = document.querySelector("#top-bar-basket");
-cartMenuOption.insertAdjacentHTML('afterend', "<button id='addHackButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.addHack()'>Add hack</button>");
+cartMenuOption.insertAdjacentHTML("afterend", "<button id='addHackButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.addHack()'>Add hack</button>");
 
-// TODO - Add support for more than 1 Kickstarter campaign - right now it only supports ONE
+
 window.addHack = function ()
 {
-    var campaign = document.querySelector('#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.user-group-title > i');
-    campaign.insertAdjacentHTML("afterend","<button style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload()'>Full Download</button>");
-    document.getElementById('addHackButton').remove();
+    var campaign = document.querySelector("#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.user-group-title > i");
+    campaign.insertAdjacentHTML("afterend","<button id='fullDownloadButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload()'>Full Download</button>");
+    document.getElementById("addHackButton").remove();
 };
 
-let selectorForFiles = '#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.container-objects > ul > li > div';
+let selectorForFiles = "#container-campaigns > div > div > div.campaign-container-content > ul > li > div > div.container-objects > ul > li > div";
 window.fullDownload = async function () {
     let allDownloads = document.querySelectorAll(selectorForFiles);
-    if (confirm('Are you sure you want to download all ' + allDownloads.length + ' elements?')) {
-        for (var i=0;i<allDownloads.length;i=i+1) {
+    if (confirm("Are you sure you want to download all " + allDownloads.length + " elements?")) {
+        var feedback = document.createElement("div");
+        feedback.innerHTML = "<div id='feedback' style='z-index: 9; margin: 30px; background: #A0D3E8; border:2px; border-color: black; position:absolute; top:50%; left: 50%; padding: 5px'><span id='feedbackLine1'></span><br><span id='feedbackLine2'></span></div>";
+        document.body.appendChild(feedback);
+
+        var numDownloads = allDownloads.length;
+        for (var i=0;i<numDownloads;i=i+1) {
             let urls = allDownloads[i].querySelectorAll('a');
             let image = allDownloads[i].querySelector('img');
             let name = allDownloads[i].querySelector('span').textContent;
-            console.log('Downloading file ' + i + ': ' + name);
+            setFeedback(1, "Downloading file " + (i+1) + "/" + numDownloads + " - " + name);
 
-            await window.fileDownload(image.src, name);
-            await window.fileDownload(urls[1].href, name + '.zip'); //TODO: Infer file extension
+            // First, get content
+            var savedFilename = await window.fileDownload(urls[1].href);
+
+            // Now, compute WHICH image to download, and name to store it
+            await window.fileDownload(getFullSizeImageURL(image.src),savedFilename);
+
             console.log('Downloaded completed ' + i);
         }
     }
 };
 
-// TODO - Show progress - Using this: https://javascript.info/fetch-progress
-window.fileDownload = async function(url,filename) {
-    await fetch(url).then(t => {
-        return t.blob().then(file => {
-            var a = document.createElement("a");
-            var url = URL.createObjectURL(file);
-            a.href=url;
-            a.download = filename;
-            console.log("Saving " + filename);
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function() {
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-            }, 0);
-        });
-    });
+function getFullSizeImageURL(popUpURL) {
+    return popUpURL.replace(/\/images\/[0-9X]*-/,"/images/");
+}
+
+function setFeedback(lineNumber, messageText) {
+    document.getElementById("feedbackLine" + lineNumber).innerHTML = messageText;
+}
+
+function getFilenameAndExtension(url) {
+    // First, trim extra parameters (if present)
+    var filteredUrl = url.toString().split("?")[0]
+    // then get everything after last /
+    filteredUrl=filteredUrl.substring(filteredUrl.lastIndexOf('/') + 1)
+    return filteredUrl;
+}
+
+window.fileDownload = async function(url, filenameToUse) {
+    // Step 1: start the fetch and obtain a reader
+    let response = await fetch(url);
+    const reader = response.body.getReader();
+    const contentLength = +response.headers.get('Content-Length');
+    console.log(response.headers);
+
+    let receivedLength = 0;
+    let chunks = [];
+    while(true) {
+        const {done, value} = await reader.read();
+        if (done) {
+            break;
+        }
+        chunks.push(value);
+        receivedLength += value.length;
+        let pctLength = ((receivedLength / contentLength)*100).toFixed(1);
+        setFeedback(2, `Received ${(receivedLength/1024).toFixed(0)}k of ${(contentLength/1024).toFixed(0)}k - ${pctLength}%`);
+    }
+
+    let file = new Blob(chunks);
+
+    var a = document.createElement("a");
+    var objectURL = URL.createObjectURL(file);
+    a.href=objectURL;
+    var savedFilename = getFilenameAndExtension(response.url);
+    // If we have a filenameToUse, use it, but keep extension
+    if (filenameToUse) {
+        // If filenameToUse has an extension, remove it ... then add the actual one
+        savedFilename=filenameToUse.split(".")[0] + savedFilename.substring(savedFilename.lastIndexOf("."));
+    }
+    a.download = savedFilename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(objectURL);
+    }, 0);
+    return savedFilename;
 };
