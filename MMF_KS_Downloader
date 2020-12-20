@@ -18,7 +18,13 @@ window.addHack = function ()
 {
     var campaigns = document.querySelectorAll('#container-campaigns div.user-group-title > i');
     campaigns.forEach(function(campaign) {
-            campaign.insertAdjacentHTML("afterend","<button class='fullDownloadButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload(this)'>Full Download</button>");
+        //Add download button
+        campaign.insertAdjacentHTML("afterend","<button class='fullDownloadButton' style='display: block; border: 1px solid #DCDEDD;' onclick='window.fullDownload(this)'>Full Download</button>");
+        //Add checkboxes for each file in the campaign
+        campaign.closest('.campaign-card').querySelectorAll('div.container-objects li.li-object-group div.object-user-group a:nth-child(2)').forEach(
+            function(fileDownload) {
+                fileDownload.insertAdjacentHTML('beforeBegin','<input type="checkbox" checked="true" />'); // TODO - Better styling, next to download button
+            });
     });
     document.getElementById("addHackButton").remove();
             var feedback = document.createElement("div");
@@ -39,31 +45,45 @@ window.fullDownload = async function (downloadButton) {
     let campaign = parent.closest(".campaign-card");
 
     let allDownloads = parent.querySelectorAll(selectorForFiles);
+    var i=0;
+    var numDownloads=0;
 
-    if (confirm("Are you sure you want to download all " + allDownloads.length + " elements?")) {
-        let campaignNameArray = cleanStringForFilename(campaign.querySelector(campaignTitleSelector).textContent.trim()).split(" by ");
-        let campaignName = campaignNameArray[1] + " KS - " + campaignNameArray[0];
-        let filePrefix = uuid();
+    // Find how many elements have been selected
+    for (i=0;i<allDownloads.length;i=i+1) {
+        if (allDownloads[i].querySelector('input[type=checkbox]').checked) { numDownloads = numDownloads + 1 };
+    }
 
-        let feedback = document.getElementById("feedback");
-        feedback.style.display = "block";
-        var numDownloads = allDownloads.length;
-        for (var i=0;i<numDownloads;i=i+1) {
-            let urls = allDownloads[i].querySelectorAll('a.mmfgreen');
-            let image = allDownloads[i].querySelector('img');
-            let name = allDownloads[i].querySelector('.object-name').textContent;
-            setFeedback(1, "Downloading file " + (i+1) + "/" + numDownloads + " - " + name);
+    if (numDownloads==0) {
+        alert('No files selected for dowloading');
+    } else {
+        if (confirm("Are you sure you want to download the selected " + numDownloads + " elements?")) {
+            let campaignNameArray = cleanStringForFilename(campaign.querySelector(campaignTitleSelector).textContent.trim()).split(" by ");
+            let campaignName = campaignNameArray[1] + " KS - " + campaignNameArray[0];
+            let filePrefix = uuid();
 
-            // First, get content
-            await window.fileDownload(urls[0].href, filePrefix + name);
+            let feedback = document.getElementById("feedback");
+            feedback.style.display = "block";
+            var numDownloadedFiles = 0;
+            for (i=0;i<allDownloads.length;i=i+1) {
+                if (allDownloads[i].querySelector('input[type=checkbox]').checked) {
 
-            // Now, compute WHICH image to download, and go download it
-            await window.fileDownload(getFullSizeImageURL(image.src),filePrefix + name);
+                    let urls = allDownloads[i].querySelectorAll('a.mmfgreen');
+                    let image = allDownloads[i].querySelector('img');
+                    let name = allDownloads[i].querySelector('.object-name').textContent;
+                    setFeedback(1, "Downloading file " + (numDownloadedFiles+1) + "/" + numDownloads + " - " + name);
 
-            console.log('Downloaded completed ' + i);
+                    // First, get content
+                    await window.fileDownload(urls[0].href, filePrefix + name);
+
+                    // Now, compute WHICH image to download, and go download it
+                    await window.fileDownload(getFullSizeImageURL(image.src),filePrefix + name);
+
+                    numDownloadedFiles = numDownloadedFiles + 1;
+                }
+            }
+            feedback.style.display = "none";
+            makeCampaignFile(campaignName, filePrefix);
         }
-        feedback.style.display = "none";
-        makeCampaignFile(campaignName, filePrefix);
     }
 };
 
@@ -102,13 +122,8 @@ function makeCampaignFile(campaignName, filePrefix) {
     content=content.concat(`mkdir ${filePrefix}\n`);
     content=content.concat(`mv ${filePrefix}*.* ${filePrefix}\n`);
     content=content.concat(`cd ${filePrefix}\n`);
-    content=content.concat('#Remove prefixes from all files\n');
-    content=content.concat(`for file in ${filePrefix}*\n`);
-    content=content.concat('do\n');
-    content=content.concat('  mv "$file" "${file#',filePrefix,'}"\n');
-    content=content.concat('done\n');
     content=content.concat('#Process all ZIP files\n');
-    content=content.concat('for zipfile in *.zip\n');
+    content=content.concat(`for zipfile in ${filePrefix}*.zip\n`);
     content=content.concat('  do\n');
     content=content.concat('    echo "Processing ZIP file [$zipfile]"\n');
     content=content.concat('    filename=$(echo "$zipfile" | sed -e \'s/\.[^.]*$//\')\n');
@@ -120,6 +135,11 @@ function makeCampaignFile(campaignName, filePrefix) {
     content=content.concat('    rm -r "$filename"\n');
     content=content.concat('    #Remove zipfile\n');
     content=content.concat('    rm "$zipfile"\n');
+    content=content.concat('  done\n');
+    content=content.concat('#Remove prefixes from all files\n');
+    content=content.concat(`for file in ${filePrefix}*\n`);
+    content=content.concat('  do\n');
+    content=content.concat('    mv "$file" "${file#',filePrefix,'}"\n');
     content=content.concat('  done\n');
     content=content.concat('cd ..\n');
     content=content.concat(`mv ${filePrefix} "${campaignName}"\n`);
