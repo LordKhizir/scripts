@@ -43,7 +43,7 @@ window.fullDownload = async function (downloadButton) {
     if (confirm("Are you sure you want to download all " + allDownloads.length + " elements?")) {
         let campaignNameArray = cleanStringForFilename(campaign.querySelector(campaignTitleSelector).textContent.trim()).split(" by ");
         let campaignName = campaignNameArray[1] + " KS - " + campaignNameArray[0];
-        let filePrefix = "[" + campaignName + "]"; // TODO improve with GUID
+        let filePrefix = uuid();
 
         let feedback = document.getElementById("feedback");
         feedback.style.display = "block";
@@ -55,10 +55,10 @@ window.fullDownload = async function (downloadButton) {
             setFeedback(1, "Downloading file " + (i+1) + "/" + numDownloads + " - " + name);
 
             // First, get content
-            var savedFilename = await window.fileDownload(urls[0].href, filePrefix + name);
+            await window.fileDownload(urls[0].href, filePrefix + name);
 
-            // Now, compute WHICH image to download, and name to store it
-            await window.fileDownload(getFullSizeImageURL(image.src),savedFilename);
+            // Now, compute WHICH image to download, and go download it
+            await window.fileDownload(getFullSizeImageURL(image.src),filePrefix + name);
 
             console.log('Downloaded completed ' + i);
         }
@@ -66,6 +66,13 @@ window.fullDownload = async function (downloadButton) {
         makeCampaignFile(campaignName, filePrefix);
     }
 };
+
+function uuid() {
+  return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 function getFullSizeImageURL(popUpURL) {
     return popUpURL.replace(/\/images\/[0-9X]*-/,"/images/");
@@ -79,21 +86,27 @@ function cleanStringForFilename(filenameToUse) {
     return filenameToUse.replace(/[/\\?%*:|"<>]/g, '');
 }
 
-function getFilenameAndExtension(url) {
+function getExtension(url) {
     // First, trim extra parameters (if present)
     var filteredUrl = url.toString().split("?")[0]
     // then get everything after last /
-    filteredUrl=filteredUrl.substring(filteredUrl.lastIndexOf('/') + 1)
-    return filteredUrl;
+    filteredUrl=filteredUrl.substring(filteredUrl.lastIndexOf('/') + 1);
+    // and now, remove everything except file extension
+    return filteredUrl.substring(filteredUrl.lastIndexOf("."));
 }
 
 function makeCampaignFile(campaignName, filePrefix) {
     let content = "";
-    content=content.concat('#Post-download process script for ', campaignName, '\n');
+    content=content.concat(`#Post-download process script for ${campaignName}\n`);
     content=content.concat('#Create new dir and move everything there\n');
-    content=content.concat('mkdir "', campaignName, '"\n');
-    content=content.concat('mv "', filePrefix, '"* "', campaignName, '"\n');
-    content=content.concat('cd "', campaignName, '"\n');
+    content=content.concat(`mkdir ${filePrefix}\n`);
+    content=content.concat(`mv ${filePrefix}*.* ${filePrefix}\n`);
+    content=content.concat(`cd ${filePrefix}\n`);
+    content=content.concat('#Remove prefixes from all files\n');
+    content=content.concat(`for file in ${filePrefix}*\n`);
+    content=content.concat('do\n');
+    content=content.concat('  mv "$file" "${file#',filePrefix,'}"\n');
+    content=content.concat('done\n');
     content=content.concat('#Process all ZIP files\n');
     content=content.concat('for zipfile in *.zip\n');
     content=content.concat('  do\n');
@@ -109,6 +122,7 @@ function makeCampaignFile(campaignName, filePrefix) {
     content=content.concat('    rm "$zipfile"\n');
     content=content.concat('  done\n');
     content=content.concat('cd ..\n');
+    content=content.concat(`mv ${filePrefix} "${campaignName}"\n`);
 
     let file = new Blob([content], {type: "text/plain;charset=utf-8"});
 
@@ -149,19 +163,12 @@ window.fileDownload = async function(url, filenameToUse) {
     var a = document.createElement("a");
     var objectURL = URL.createObjectURL(file);
     a.href=objectURL;
-    var savedFilename = getFilenameAndExtension(response.url);
-    // If we have a filenameToUse, use it, but keep extension
-    if (filenameToUse) {
-        filenameToUse = cleanStringForFilename(filenameToUse);
-        // If filenameToUse has an extension, remove it ... then add the actual one
-        savedFilename=filenameToUse.split(".")[0] + savedFilename.substring(savedFilename.lastIndexOf("."));
-    }
-    a.download = savedFilename;
+    // Saving using the required name + the real extension
+    a.download = cleanStringForFilename(filenameToUse) + getExtension(response.url);
     document.body.appendChild(a);
     a.click();
     setTimeout(function() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(objectURL);
     }, 0);
-    return savedFilename;
 };
