@@ -1,12 +1,14 @@
 #Repack
 #For each subfolder in current folder, repack all content as .7z
+#Settings for maximum compression
 #Extra for OSX - dot_clean to remove .fu extra file
-#Extra for OSX - At 7za, -xr!.DS_Store to remove .DS_Store file
+#Extra for OSX - At 7za, -xr to remove unwanted files: .DS_Store, Thumbs.db
 
+set -e #Halt on error, to avoid removing unprocessed folders
 dir=`pwd`
 dot_clean .
 for folder in */
   do
-    7za a -r -t7z -mx=9 -xr!.DS_Store "${folder%/}.7z" "$folder"
+    7za a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on -xr!.DS_Store -xr!Thumbs.db "${folder%/}.7z" "$folder"
     rm -r "$folder"
 done
