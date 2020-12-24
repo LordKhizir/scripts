@@ -40,6 +40,8 @@ window.addHack = function ()
 let feedbackSelector = "#feedback";
 let selectorForFiles = "div.container-objects li.li-object-group div.object-user-group";
 let campaignTitleSelector = "p.campaign-title";
+let GLOBAL_filePrefix = "UNSET";
+
 window.fullDownload = async function (downloadButton) {
     let parent = downloadButton.closest('li.li-user-group');
     let campaign = parent.closest(".campaign-card");
@@ -59,7 +61,7 @@ window.fullDownload = async function (downloadButton) {
         if (confirm("Are you sure you want to download the selected " + numDownloads + " elements?")) {
             let campaignNameArray = cleanStringForFilename(campaign.querySelector(campaignTitleSelector).textContent.trim()).split(" by ");
             let campaignName = campaignNameArray[1] + " KS - " + campaignNameArray[0];
-            let filePrefix = uuid();
+            GLOBAL_filePrefix = uuid();
 
             let feedback = document.getElementById("feedback");
             feedback.style.display = "block";
@@ -73,16 +75,16 @@ window.fullDownload = async function (downloadButton) {
                     setFeedback(1, "Downloading file " + (numDownloadedFiles+1) + "/" + numDownloads + " - " + name);
 
                     // First, get content
-                    await window.fileDownload(urls[0].href, filePrefix + name);
+                    await window.fileDownload(urls[0].href, GLOBAL_filePrefix + name);
 
                     // Now, compute WHICH image to download, and go download it
-                    await window.fileDownload(getFullSizeImageURL(image.src),filePrefix + name);
+                    await window.fileDownload(getFullSizeImageURL(image.src),GLOBAL_filePrefix + name);
 
                     numDownloadedFiles = numDownloadedFiles + 1;
                 }
             }
             feedback.style.display = "none";
-            makeCampaignFile(campaignName, filePrefix);
+            makeCampaignFile(campaignName, GLOBAL_filePrefix);
         }
     }
 };
@@ -156,15 +158,9 @@ function makeCampaignFile(campaignName, filePrefix) {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(objectURL);
     }, 0);
-}
+};
 
-window.fileDownload = async function(url, filenameToUse) {
-    // Step 1: start the fetch and obtain a reader
-    let response = await fetch(url);
-    const reader = response.body.getReader();
-    const contentLength = +response.headers.get('Content-Length');
-    console.log(response.headers);
-
+async function getFileChunksFromReader(reader, contentLength) {
     let receivedLength = 0;
     let chunks = [];
     while(true) {
@@ -177,18 +173,66 @@ window.fileDownload = async function(url, filenameToUse) {
         let pctLength = ((receivedLength / contentLength)*100).toFixed(1);
         setFeedback(2, `Received ${(receivedLength/1024).toFixed(0)}k of ${(contentLength/1024).toFixed(0)}k - ${pctLength}%`);
     }
+    return chunks;
+}
 
-    let file = new Blob(chunks);
+window.fileDownload = async function(url, filenameToUse) {
+    // Step 1: start the fetch and obtain a reader
 
-    var a = document.createElement("a");
-    var objectURL = URL.createObjectURL(file);
-    a.href=objectURL;
-    // Saving using the required name + the real extension
-    a.download = cleanStringForFilename(filenameToUse) + getExtension(response.url);
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function() {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(objectURL);
-    }, 0);
+    // FOR TESTING
+    // url='https://raw.githubusercontent.com/LordKhizir/scripts/main/Fishers_House_Pre-Supported3d-print-141401.html';
+
+    let response = await fetch(url);
+    if (response.status!="200") {return }; // In case of error (Auth, for example) just exit
+    const reader = response.body.getReader();
+    const contentLength = response.headers.get('Content-Length');
+    const contentType = response.headers.get('content-type');
+    if (contentType == 'text/html; charset=utf-8' || contentType == 'text/plain; charset=utf-8') {
+        // TODO - WARNING - @LUX, here is where we try to "catch" the child pages... maybe you'll have to tweak it, as I can't test it from start to end
+        // The link has taken us to a child page, that has embedded downloads
+        // Get the HTML, parse it, download internal files
+        console.log ('Downloading child page - [' + url + ']');
+        let chunks = await getFileChunksFromReader(reader, contentLength);
+
+        // Concatenate chunks into single Uint8Array
+        let realContentLength = 0;
+        for(let chunk of chunks) {
+            realContentLength = realContentLength + chunk.length;
+        }
+        let chunksAll = new Uint8Array(realContentLength);
+        let position = 0;
+        for(let chunk of chunks) {
+            chunksAll.set(chunk, position);
+            position += chunk.length;
+        }
+        let result = new TextDecoder("utf-8").decode(chunksAll);
+        let foundArchivesRaw = result.match(/"archives":\[.*\]/);
+        if (foundArchivesRaw!=null) {
+            let foundArchives = JSON.parse('{' + foundArchivesRaw.toString() + '}');
+            for (let foundArchive of foundArchives.archives) {
+                console.log('Path:[' + foundArchive.path + '] - Download URL:[' + foundArchive.download_url + ']');
+                setFeedback(1, "Downloading child file " + foundArchive.path);
+                await window.fileDownload(foundArchive.download_url, GLOBAL_filePrefix + foundArchive.path);
+            }
+        }
+
+    } else {
+        // "normal" file download
+        console.log ('Downloading file - [' + url + ']');
+
+        let chunks = await getFileChunksFromReader(reader, contentLength);
+        let file = new Blob(chunks);
+
+        var a = document.createElement("a");
+        var objectURL = URL.createObjectURL(file);
+        a.href=objectURL;
+        // Saving using the required name + the real extension
+        a.download = cleanStringForFilename(filenameToUse) + getExtension(response.url);
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(objectURL);
+        }, 0);
+    }
 };
