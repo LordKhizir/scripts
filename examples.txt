@@ -1,0 +1,3 @@
+Script para mover cosas a saco
+
+cat toni_to_sort_final.txt | grep -i "cgtrader" | while read DATA; do echo "mv \"/Users/toni.navarro/NAS/3D-to-sort/$DATA\" /Users/toni.navarro/WORK/cgtrader/"; done > move.sh
