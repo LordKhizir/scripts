@@ -1,11 +1,18 @@
 rm move.sh
 touch move.sh
-for file in *;
+for source in *;
 do
-  if [ "${name}" == "." ] #Avoid processing special names
+  if [ "${source}" == "." ] #Avoid processing special names
   then
     continue
   fi
-  echo mv \"${file}_SOURCE\" \"${file}_TARGET\" >> move.sh
+  #Here comes the magic
+  target="$(echo $source | sed 's/Ballares - //g' | sed 's/ Ballares//g')" # Replace substrings
+  #target="$(echo $source | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')" # Convert to lowercase
+  #target="$(echo $source | sed 's/\([0-9]*\)\( - \)\(.*\)\(\..*\)/AUTOR - \3 [Gambody \1]\4/')" # Move 000000 to end
+  if ! [ "${source}" == "${target}" ]
+  then
+    echo mv \"${source}\" \"${target}\" >> move.sh
+  fi
 done
 open move.sh

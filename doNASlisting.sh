@@ -2,10 +2,10 @@
 #Or if -f (force) is passed as parameter
 if ! [ `find /Users/toni.navarro/NAS/3D/contents.txt -maxdepth 1 -type f -mmin -480` ] || [ "$1" = "-f" ] ;
 then
-  echo "No recent file found - generating new one"
+  #echo "No recent file found - generating new one"
   rm -f /Users/toni.navarro/NAS/3D/contents.txt
   find /Users/toni.navarro/NAS/3D/* > /Users/toni.navarro/NAS/3D/contents.txt
   #touch /Users/toni.navarro/NAS/3D/contents.txt
-else
-  echo "Recent file found - no need to rewrite it"
+#else
+  #echo "Recent file found - no need to rewrite it"
 fi
