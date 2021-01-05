@@ -32,8 +32,11 @@ do
   echo "\t${file}"
 
   #First step - format conversion - only if needed
-  if ! [ "${extension}" == "jpg" ];
+  if [ "${extension}" == "JPG" ];
   then
+		mv "${file}" "${name}.jpg" # only extension needs to be normalized
+	elif ! [ "${extension}" == "jpg" ];
+	then
     echo "\t\tConverting to jpg"
     magick convert "${file}" "${name}.jpg"
     rm "${file}"
