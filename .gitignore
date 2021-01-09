@@ -1,0 +1,8 @@
+### IntelliJ ###
+.idea/
+
+### Python ###
+support/__pycache__
+
+### Credentials, releases, secrets... ###
+#Nothing yet
