@@ -7,9 +7,9 @@ do
     continue
   fi
   #Here comes the magic
-  #target="$(echo $source | sed 's/Vladistov //g')" # Replace substrings
+  target="$(echo $source | sed 's/Biringan //g')" # Replace substrings
   #target="$(echo $source | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')" # Convert to lowercase
-  target="$(echo $source | python3 -c "import sys; print(sys.stdin.read().title())")" #Convert to Capitalized First Letter
+  #target="$(echo $source | python3 -c "import sys; print(sys.stdin.read().title())")" #Convert to Capitalized First Letter
   #target="The Bosses - ${source}" # Add prefix
   #target="${source} [Wasteworld]" # Add suffix to FOLDERS
   #target="$(echo $source | sed 'y/-_/  /')" # Remove -_
