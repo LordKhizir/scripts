@@ -20,7 +20,7 @@ echo "Source folder A:    ${sourceA}"
 echo "Source folder B:    ${sourceB}"
 echo "Destination folder: ${destination}"
 
-find "${sourceA}" -type f |
+find "${sourceA}" -type f -not -name .DS_Store -not -name Thumbs.db |
 while read sourceAfile;
 do
   extension=${sourceAfile##*.}
