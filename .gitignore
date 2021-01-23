@@ -5,4 +5,4 @@
 support/__pycache__
 
 ### Credentials, releases, secrets... ###
-#Nothing yet
+secrets/Vault3D_THERE_credentials.sh
