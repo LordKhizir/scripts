@@ -3,7 +3,7 @@
 #Settings for maximum compression
 for file in *.*
   do
-    7za a -t7z -m0=lzma -mx=9 -mqs -mfb=64 -md=32m -ms=on "${file%.*}.7z" "$file"
+    7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on "${file%.*}.7z" "$file"
 done
 #Extra bells;
 say -v Monica "dusietezeta completado"

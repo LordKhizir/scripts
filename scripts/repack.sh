@@ -10,7 +10,7 @@ dir=`pwd`
 dot_clean .
 for folder in */
   do
-    7za a -t7z -m0=lzma2 -mx=9 -mqs -mfb=64 -md=1024m -ms=on -xr!.DS_Store -xr!Thumbs.db "${folder%/}.7z" "${folder}"
+    7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on -xr!.DS_Store -xr!Thumbs.db "${folder%/}.7z" "${folder}"
     rm -r "${folder}"
 done
 
@@ -25,7 +25,7 @@ for file in *.{stl,STL};
     then
       continue
     fi
-    7za a -t7z -m0=lzma -mx=9 -mqs -mfb=64 -md=32m -ms=on "${file%.*}.7z" "$file"
+    7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on "${file%.*}.7z" "$file"
 done
 #Extra bells ;)
 say -v Monica "repack completado"
