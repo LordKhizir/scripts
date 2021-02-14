@@ -26,6 +26,7 @@ for file in *.{stl,STL};
       continue
     fi
     7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on "${file%.*}.7z" "$file"
+    rm "${file}"
 done
 #Extra bells ;)
 say -v Monica "repack completado"

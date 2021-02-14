@@ -17,7 +17,13 @@ do
   newFile="${workFolder}/${name%/}.7z"
   echo "Unpacking [$file]"
   mkdir "$name"
-  7z x "${file}" -o"$name"/
+  if [ "${extension}" == "rar" ] || [ "${extension}" == "RAR" ]
+  then
+    #Rar5 is not supported by 7z
+    unrar x "$file" "$name"
+  else
+    7z x "$file" -o"$name"/
+  fi
   7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on -xr!.DS_Store -xr!Thumbs.db "${newFile}" "$name"
   rm -r "$name" # remove temp folder for the file
   #If the original file was already a 7z, check if new file is smaller than the first one - sometimes it happens, depending on compression method

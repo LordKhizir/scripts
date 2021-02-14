@@ -13,7 +13,13 @@ do
   fi
   echo "Unpacking [$file]"
   mkdir "$name"
-  7z x "$file" -o"$name"/
+  if [ "${extension}" == "rar" ] || [ "${extension}" == "RAR" ]
+  then
+    #Rar5 is not supported by 7z
+    unrar x "$file" "$name"
+  else
+    7z x "$file" -o"$name"/
+  fi
   rm "$file"
 done
 #Extra bells;
