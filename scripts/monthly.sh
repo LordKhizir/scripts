@@ -1,4 +1,4 @@
-baseFolder="/Users/toni.navarro/NAS/3D/"
+baseFolder="/Users/toni.navarro/NAS/Vault3D/"
 patreons=(
   "Archvillain Games"
   "Artisans Guild"
