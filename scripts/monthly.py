@@ -17,9 +17,9 @@ def checkPatreonsForMonth(folder, patreons, month):
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         proc.wait()
         if proc.returncode==0:
-            print(patreon + " - exists")
+            print('\t✅ ' + patreon)
         else:
-            print('-------- ' + patreon + " - does not exists yet")
+            print('\t❌ ' + patreon + ' - does not exists yet')
 
 
 
@@ -44,4 +44,3 @@ if args.month==None:
   doSimpleListing(baseFolder, config['patreons'])
 else:
   checkPatreonsForMonth(baseFolder, config['patreons'], args.month)
-

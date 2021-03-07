@@ -18,7 +18,7 @@ do
     #Rar5 is not supported by 7z
     unrar x "$file" "$name"
   else
-    7z x "$file" -o"$name"/
+    7z x "$file" #-o"$name"/        Output to dir... but it was creating doubles
   fi
   rm "$file"
 done

@@ -24,7 +24,7 @@ do
   else
     7z x "$file" -o"$name"/
   fi
-  7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on -xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini "${newFile}" "$name"
+  7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on -xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini "${newFile}" "$name/."
   rm -r "$name" # remove temp folder for the file
   #If the original file was already a 7z, check if new file is smaller than the first one - sometimes it happens, depending on compression method
   if [ "${extension}" == "7z" ] || [ "${extension}" == "7Z" ]

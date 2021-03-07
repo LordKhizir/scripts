@@ -10,10 +10,12 @@ do
   target="$(echo $source | sed 's/Biringan //g')" # Replace substrings
   #target="$(echo $source | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/')" # Convert to lowercase
   #target="$(echo $source | python3 -c "import sys; print(sys.stdin.read().title())")" #Convert to Capitalized First Letter
-  #target="The Bosses - ${source}" # Add prefix
+  target="Asgard Rising ${source}" # Add prefix
   #target="${source} [Wasteworld]" # Add suffix to FOLDERS
   #target="$(echo $source | sed 'y/-_/  /')" # Remove -_
-  #target="$(echo $source | sed 's/Rampage Dungeons/Rampage Castle/g')" # Replace substrings
+  target="$(echo $target | sed 's/20191/2019-1/g')" # Replace substrings
+  target="$(echo $target | sed 's/20200/2020-0/g')" # Replace substrings
+  target="$(echo $target | sed 's/20201/2020-1/g')" # Replace substrings
   #target="$(echo $source | sed 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/')" # Convert to uppercase
   #target="$(echo $source | sed 's/\([0-9]*\)\( - \)\(.*\)\(\..*\)/AUTOR - \3 [Gambody \1]\4/')" # Move 000000 to end
   #target="$(echo $source | sed 's/Lost Tribes - \(.*\)\(\..*\)/\1 [Lost Tribes]\2/')" # Move prefix to end

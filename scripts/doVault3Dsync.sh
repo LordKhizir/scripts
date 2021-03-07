@@ -76,7 +76,7 @@ copyFromHereToThere() {
   echo "----------------------------------------"
   echo "Starting rsync from ${HereBaseFolder}/${FOLDER} to ${ThereBaseFolder}/${FOLDER}"
   date
-  rsync -avut ${DRYRUN} --progress --timeout=0 --exclude=.DS_Store --exclude=._* "${HereBaseFolder}/Vault3D/${FOLDER}" "${ThereBaseFolder}/Vault3D/${FOLDER}"
+  rsync -avut ${DRYRUN} --size-only --progress --timeout=0 --exclude=.DS_Store --exclude=._* "${HereBaseFolder}/Vault3D/${FOLDER}" "${ThereBaseFolder}/Vault3D/${FOLDER}"
 }
 
 # Copy from there to here
@@ -85,7 +85,7 @@ copyFromThereToHere() {
   echo "----------------------------------------"
   echo "Starting rsync from ${ThereBaseFolder}/${FOLDER} to ${HereBaseFolder}/${FOLDER}"
   date
-  rsync -avut ${DRYRUN} --progress --timeout=0 --exclude=.DS_Store --exclude=._* "${ThereBaseFolder}/Vault3D/${FOLDER}" "${HereBaseFolder}/Vault3D/${FOLDER}"
+  rsync -avut ${DRYRUN} --size-only --progress --timeout=0 --exclude=.DS_Store --exclude=._* "${ThereBaseFolder}/Vault3D/${FOLDER}" "${HereBaseFolder}/Vault3D/${FOLDER}"
 }
 
 #Usage
