@@ -15,22 +15,23 @@ for subdir, dirs, files in os.walk(folder):
         print(filepath)
 
         # Files to be removed
-        if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini") or filename.startswith("._"):
+        if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini") \
+                or filename.startswith("._") \
+                or extension == ".txt":
             print("\tRemoving it")
             os.remove(filepath)
 
         # Ascii OBJ and STL - Remove comments
-        # Also on TXT files
-        if extension in (".obj", ".stl", ".txt"):
+        if extension in (".obj", ".stl"):
             print("\tChecking")
-            cleanit=False
+            cleanit = False
             try:
                 with open(filepath, "r") as f:
                     lines = f.readlines()
                 for line in lines:
                     if line.startswith("#"):
                         print("\tComment found.")
-                        cleanit=True
+                        cleanit = True
                         break
             except UnicodeDecodeError:
                 # Binary file, just continue
@@ -44,5 +45,3 @@ for subdir, dirs, files in os.walk(folder):
                             print("\t\tRemoved " + line)
                         else:
                             f.write(line)
-
-
