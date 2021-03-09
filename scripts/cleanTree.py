@@ -15,7 +15,7 @@ for subdir, dirs, files in os.walk(folder):
         print(filepath)
 
         # Files to be removed
-        if name.endswith(".DS_Store"):
+        if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini"):
             print("\tRemoving it")
             os.remove(filepath)
 
