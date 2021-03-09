@@ -22,4 +22,5 @@ do
     echo mv \"${source}\" \"${target}\" >> move.sh
   fi
 done
+echo "rm move.sh" >> move.sh
 vi move.sh
