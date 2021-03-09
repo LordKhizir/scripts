@@ -15,12 +15,13 @@ for subdir, dirs, files in os.walk(folder):
         print(filepath)
 
         # Files to be removed
-        if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini"):
+        if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini") or filename.startswith("._"):
             print("\tRemoving it")
             os.remove(filepath)
 
         # Ascii OBJ and STL - Remove comments
-        if extension in (".obj", ".stl"):
+        # Also on TXT files
+        if extension in (".obj", ".stl", ".txt"):
             print("\tChecking")
             cleanit=False
             try:
