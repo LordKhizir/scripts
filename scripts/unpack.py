@@ -6,16 +6,15 @@ import os
 # Take care of NOT creating unnecessary nested dirs
 
 folder = "."
-for entry in os.scandir(folder):
+for entry in os.scandir("."):
     if entry.is_file():  # and entry.path.endswith(".rar"):
         file = str(entry.path).removeprefix("./")
         name, extension = os.path.splitext(file)
-        extension = extension.lower()
-        if extension in (".rar", ".zip", ".7z"):
+        if extension.lower() in (".rar", ".zip", ".7z"):
             print("Unpacking " + file)
             newfolder = folder + "/" + name
             os.mkdir(newfolder)
-            if extension == ".rar":
+            if extension.lower() == ".rar":
                 # Rar5 is not supported by 7z
                 os.system('unrar x "' + file + '" "' + name + '"')
             else:
