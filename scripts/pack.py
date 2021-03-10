@@ -25,7 +25,7 @@ for entry in os.scandir("."):
         safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
                      '-xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini ' +
                      '"' + entry.name + '.7z" "' + entry.name + '/"')
-        os.rmdir(entry.name)
+        safe_execute('rm -r "' + entry.name + '"')
     elif entry.is_file():
         name, extension = os.path.splitext(entry.name)
         if extension.lower() in (".stl", ".obj"):

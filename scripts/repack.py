@@ -26,6 +26,8 @@ def fix_double_folder(name):
 
 
 workFolder = "TMPWRKFLDR"
+sum_size_old = 0
+sum_size_new = 0
 safe_execute('mkdir -p "' + workFolder + '"')
 
 for entry in os.scandir("."):
@@ -49,21 +51,31 @@ for entry in os.scandir("."):
             # Remove temp folder for the file
             safe_execute('rm -r "' + name + '"')
 
+            size_old = os.path.getsize(entry.name)
+            size_new = os.path.getsize(newFile)
+
             # If the original file was already a 7z, check if new file is smaller than the first one
             # sometimes it happens, depending on compression method
             if extension.lower() == ".7z":
-                oldSize = os.path.getsize(entry.name)
-                newSize = os.path.getsize(newFile)
-                print("Old size:", oldSize, " New size:", newSize)
-                if oldSize < newSize:
+                print("Old size:", size_old, " New size:", size_new)
+                if size_old < size_new:
                     print("Restoring original file, as it's smaller")
                     safe_execute('mv "' + entry.name + '"' + newFile + '"')
+                    size_new = size_old
                 else:
                     os.remove(entry.path)
             else:
                 os.remove(entry.path)
 
+            sum_size_old += size_old
+            sum_size_new += size_new
+
 # Move everything from working dir, and remove it
 if os.path.exists(workFolder):
     safe_execute('mv ' + workFolder + '/* .')
     safe_execute('rm -r "' + workFolder + '"')
+
+# Print some stats
+print('Total size of original files:', sum_size_old)
+print('Total size of repacked files:', sum_size_new)
+print('Savings:', ((sum_size_old-sum_size_new)*100)/sum_size_old, '% -- ', sum_size_old-sum_size_new, 'bytes')
