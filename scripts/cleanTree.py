@@ -42,6 +42,6 @@ for subdir, dirs, files in os.walk(folder):
                 with open(filepath, "w") as f:
                     for line in lines:
                         if line.startswith("#"):
-                            print("\t\tRemoved " + line)
+                            print("\t\tRemoved", line)
                         else:
                             f.write(line)
