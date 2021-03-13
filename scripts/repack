@@ -79,3 +79,4 @@ if os.path.exists(workFolder):
 print('Total size of original files:', sum_size_old)
 print('Total size of repacked files:', sum_size_new)
 print('Savings:', ((sum_size_old-sum_size_new)*100)/sum_size_old, '% -- ', sum_size_old-sum_size_new, 'bytes')
+safe_execute('say -v Monica "Repack completado"')

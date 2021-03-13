@@ -32,3 +32,5 @@ for entry in os.scandir("."):
             safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
                          '"' + name + '.7z" "' + entry.name + '"')
             os.remove(entry.name)
+safe_execute('say -v Monica "Pack completado"')
+
