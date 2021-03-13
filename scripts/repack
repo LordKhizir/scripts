@@ -60,7 +60,7 @@ for entry in os.scandir("."):
                 print("Old size:", size_old, " New size:", size_new)
                 if size_old < size_new:
                     print("Restoring original file, as it's smaller")
-                    safe_execute('mv "' + entry.name + '" ' + newFile + '"')
+                    safe_execute('mv "' + entry.name + '" "' + newFile + '"')
                     size_new = size_old
                 else:
                     os.remove(entry.path)
