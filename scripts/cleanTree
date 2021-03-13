@@ -18,7 +18,7 @@ for subdir, dirs, files in os.walk(folder):
         if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini") \
                 or filename.startswith("._") \
                 or extension == ".txt":
-            print("\tRemoving it")
+            print("\t❌ Removing it")
             os.remove(filepath)
 
         # Ascii OBJ and STL - Remove comments
@@ -42,6 +42,6 @@ for subdir, dirs, files in os.walk(folder):
                 with open(filepath, "w") as f:
                     for line in lines:
                         if line.startswith("#"):
-                            print("\t\tRemoved", line)
+                            print("\t\t❌ Removed", line)
                         else:
                             f.write(line)

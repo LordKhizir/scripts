@@ -21,7 +21,7 @@ def fix_double_folder(name):
     if os.path.exists(name + "/" + name):
         os.rename(name, name + "_DELETE")
         os.rename(name + "_DELETE/" + name, name)
-        os.rmdir(name + "_DELETE")
+        safe_execute('rm -r "' + name + '_DELETE"')
 
 
 for entry in os.scandir("."):
