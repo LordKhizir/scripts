@@ -18,7 +18,8 @@ def safe_execute(command):
 def fix_double_folder(name):
     # We always force the creation of a folder... just to avoid spitting out files directly to current folder
     # But most times the packed file already included a folder... so we can end with unnecessary nesting
-    if os.path.exists(name + "/" + name):
+    # We MUST also check there are no other files
+    if os.path.exists(name + "/" + name) and len(os.listdir(name))==1:
         os.rename(name, name + "_DELETE")
         os.rename(name + "_DELETE/" + name, name)
         safe_execute('rm -r "' + name + '_DELETE"')
