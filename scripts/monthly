@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
-import argparse, os, subprocess, sys, yaml
+import argparse
+import os
+import subprocess
+import sys
+import yaml
+from pathlib import Path
+
 
 
 def do_simple_listing(folder, patreons):
+    print(folder)
+    print(patreon)
     for patreon in patreons:
         print("================================================")
         os.system("ls -r \"" + folder + patreon + "\" | grep -v \".jpg\" | head -5")
@@ -12,7 +20,7 @@ def do_simple_listing(folder, patreons):
 
 def check_patreons_for_month(folder, patreons, month):
     for patreon in patreons:
-        path = folder + patreon + '/' + patreon + ' ' + month
+        path = folder + patreon + '/' + patreon + ' - ' + month
         # We can not simply check os.path.isdir(path), as it can have extra info like release name, etc
         command = 'ls -d "' + path + '"*'
         proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -24,13 +32,17 @@ def check_patreons_for_month(folder, patreons, month):
 
 
 # parse arguments
+
 parser = argparse.ArgumentParser(description='Monthly Patreon checker. List the completion status for your preferred '
                                              'Patreons.')
 parser.add_argument('month', type=str, metavar='YYYY-MM', nargs='?', help='Month to be checked')
+parser.add_argument('-c', '--config', type=str, help='Configuration folder location', required=False)
 args = parser.parse_args()
+configFolder = args.config
 print(args.month)
-
-configFolder = os.path.split(sys.argv[0])[0] + "/../config/"
+if configFolder is None:
+    home = str(Path.home())
+    configFolder = home + "/.stlhoarder/"
 with open(configFolder + "monthly.yaml", "r") as stream:
     try:
         config = yaml.safe_load(stream)
