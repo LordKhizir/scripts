@@ -10,7 +10,7 @@ from pathlib import Path
 
 def do_simple_listing(folder, patreons):
     print(folder)
-    print(patreon)
+    print(patreons)
     for patreon in patreons:
         print("================================================")
         os.system("ls -r \"" + folder + patreon + "\" | grep -v \".jpg\" | head -5")
