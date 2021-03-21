@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os
+import argparse, os
 
 
 # cleandir - Clean current directory
@@ -13,7 +13,11 @@ def check_and_clean_stl(filepath):
     # Open file as binary, read first 80 characters
     with open(filepath, "rb") as read_file:
         header = read_file.read(80)
-        header_as_text = header.decode("utf-8")
+        try:
+            header_as_text = header.decode("utf-8")
+        except UnicodeDecodeError:
+            # Binary file, just make it continue the way we want
+            header_as_text="NOT SOLID, WASH IT"
         if header_as_text.startswith("solid"):
             # ASCII STL files start with "solid"
             read_file.close()
@@ -69,6 +73,12 @@ def clean_ascii(filepath):
 
 
 def main():
+    # parse arguments
+    parser = argparse.ArgumentParser(description='Simple STL file washer. Remove possible markings from know formats')
+    parser.add_argument('--delete', help="Force deletion of TXT files", action="store_true")
+    args = parser.parse_args()
+    force_delete: bool = args.delete
+
     folder: str = "."
     for subdir, dirs, files in os.walk(folder):
         for filename in files:
@@ -78,10 +88,14 @@ def main():
 
             print(filepath)
 
-            # Files to be removed
+            # Files to be ALWAYS removed
             if filename.lower() in (".ds_store", "thumbs.db", "desktop.ini") \
-                    or filename.startswith("._") \
-                    or extension == ".txt":
+                    or filename.startswith("._"):
+                print("\t❌ Removing it")
+                os.remove(filepath)
+
+            # Files to be removed if DELETE is true
+            if force_delete and extension == ".txt":
                 print("\t❌ Removing it")
                 os.remove(filepath)
 
