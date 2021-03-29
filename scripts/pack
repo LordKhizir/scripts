@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import subprocess
 
@@ -17,20 +18,46 @@ def safe_execute(command):
         exit(1)
 
 
-safe_execute("dot_clean .")
-safe_execute('find . \( -name ".DS_Store" -or -name "Thumbs.db" -or -name "desktop.ini" \) -delete ')
+def pack_folder(foldername):
+    safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
+                 '-xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini ' +
+                 '"' + foldername + '.7z" "' + foldername + '/"')
+    safe_execute('rm -r "' + foldername + '"')
 
-for entry in os.scandir("."):
-    if entry.is_dir():
+
+def pack_file(filename):
+    name, extension = os.path.splitext(filename)
+    if extension.lower() in (".stl", ".obj"):
         safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
-                     '-xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini ' +
-                     '"' + entry.name + '.7z" "' + entry.name + '/"')
-        safe_execute('rm -r "' + entry.name + '"')
-    elif entry.is_file():
-        name, extension = os.path.splitext(entry.name)
-        if extension.lower() in (".stl", ".obj"):
-            safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
-                         '"' + name + '.7z" "' + entry.name + '"')
-            os.remove(entry.name)
-safe_execute('say -v Monica "Pack completado"')
+                     '"' + name + '.7z" "' + filename + '"')
+        os.remove(filename)
 
+
+def clean_folder(foldername):
+    safe_execute('dot_clean "' + foldername + '"')
+    safe_execute('find "' + foldername + '" \( -name ".DS_Store" -or -name "Thumbs.db" -or -name "desktop.ini" \) -delete ')
+
+
+def pack_all():
+    for entry in os.scandir("."):
+        if entry.is_dir():
+            pack_folder(entry.name)
+        elif entry.is_file():
+            pack_file(entry.name)
+
+
+parser = argparse.ArgumentParser(description='STLHoarders Pack. Compress directories.')
+parser.add_argument('folder', type=str, nargs='?', help='Folder to pack. Defaults to current folder')
+parser.add_argument('--sound', help="Say a voice warning once the process is finished", action="store_true")
+args = parser.parse_args()
+
+
+if args.folder is None:
+    clean_folder(".")
+    pack_all()
+else:
+    clean_folder(args.folder)
+    pack_folder(args.folder)
+
+if args.sound:
+    safe_execute('say -v Monica "Pack completado"')
