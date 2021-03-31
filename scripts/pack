@@ -2,6 +2,7 @@
 import argparse
 import os
 import subprocess
+import textwrap
 
 
 # For each subfolder in current folder, repack all content as .7z
@@ -18,24 +19,24 @@ def safe_execute(command):
         exit(1)
 
 
-def pack_folder(foldername):
+def pack_folder(folder):
     safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
                  '-xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini ' +
-                 '"' + foldername + '.7z" "' + foldername + '/"')
-    safe_execute('rm -r "' + foldername + '"')
+                 '"' + folder + '.7z" "' + folder + '/"')
+    safe_execute('rm -r "' + folder + '"')
 
 
-def pack_file(filename):
-    name, extension = os.path.splitext(filename)
+def pack_file(file):
+    name, extension = os.path.splitext(file)
     if extension.lower() in (".stl", ".obj"):
         safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
-                     '"' + name + '.7z" "' + filename + '"')
-        os.remove(filename)
+                     '"' + name + '.7z" "' + file + '"')
+        os.remove(file)
 
 
-def clean_folder(foldername):
-    safe_execute('dot_clean "' + foldername + '"')
-    safe_execute('find "' + foldername + '" \( -name ".DS_Store" -or -name "Thumbs.db" -or -name "desktop.ini" \) -delete ')
+def clean_folder(folder):
+    safe_execute('dot_clean "' + folder + '"')
+    safe_execute('find "' + folder + '" \( -name ".DS_Store" -or -name "Thumbs.db" -or -name "desktop.ini" \) -delete ')
 
 
 def pack_all():
@@ -46,18 +47,31 @@ def pack_all():
             pack_file(entry.name)
 
 
-parser = argparse.ArgumentParser(description='STLHoarders Pack. Compress directories.')
-parser.add_argument('folder', type=str, nargs='?', help='Folder to pack. Defaults to current folder')
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+    STLHoarders Pack.
+        Compress directories and files as 7z optimized files.
+        If a target file or folder is provided, Pack will process it into a single 7z.
+        If no target is provided, Pack will process all contents in current folder into individual 7z.
+    '''))
+parser.add_argument('target', type=str, nargs='?', help='Folder or file to pack.')
 parser.add_argument('--sound', help="Say a voice warning once the process is finished", action="store_true")
 args = parser.parse_args()
 
 
-if args.folder is None:
+if args.target is None:
     clean_folder(".")
     pack_all()
 else:
-    clean_folder(args.folder)
-    pack_folder(args.folder)
+    if os.path.exists(args.target):
+        if os.path.isdir(args.target):
+            clean_folder(args.target)
+            pack_folder(args.target)
+        else:
+            pack_file(args.target)
+    else:
+        print("Target", args.target, "does not exist")
 
 if args.sound:
     safe_execute('say -v Monica "Pack completado"')
