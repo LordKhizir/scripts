@@ -106,6 +106,16 @@ display_usage() {
   echo '\t-d|--dry-run: Evaluates files to be copied, but only lists them. Use it to check before committing a big or dangerous rsync.'
 }
 
+#Display BIG message
+report_finished() {
+  echo "✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"
+  echo "✅                                                                                    ✅"
+  echo "✅                                     COMPLETE                                       ✅"
+  echo "✅                                                                                    ✅"
+  echo "✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅"
+  say -v Monica "Completado!"
+}
+
 # Parameter parsing
 METHOD="help"
 FOLDER=""
@@ -175,19 +185,23 @@ case $METHOD in
     ;;
   diff)
     findDifferences
+    report_finished
     exit
     ;;
   up)
     copyFromHereToThere
+    report_finished
     exit
     ;;
   down)
     copyFromThereToHere
+    report_finished
     exit
     ;;
   full)
     copyFromHereToThere
     copyFromThereToHere
+    report_finished
     exit
     ;;
   help)
@@ -195,3 +209,5 @@ case $METHOD in
     exit
     ;;
 esac
+
+
