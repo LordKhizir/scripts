@@ -16,6 +16,16 @@ import os
 import subprocess
 
 
+class Content:
+    def __init__(self, name, size, type):
+        self.name = name
+        self.size = size
+        self.type = type
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+
 def safe_call(command):
     try:
         proc = subprocess.Popen(command, stdout=subprocess.PIPE)
@@ -27,7 +37,7 @@ def safe_call(command):
 
 
 # Call source ls, get results, and preformat them for later use
-def source_ls(path):
+def source_ls(path: str) -> [Content]:
     lines = safe_call([
         'mega-ls',
         '-l',
@@ -40,16 +50,13 @@ def source_ls(path):
         if index < 3:
             continue  # First two lines are just headers
         parts = line.decode('UTF-8').split(None, 5)
-        item = [
-            parts[5],  # name
-            parts[2]  # size
-        ]
-        contents.append(item)
+        content = Content(parts[5], parts[2], parts[0])
+        contents.append(content)
     contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
-def destination_ls(path):
+def destination_ls(path: str) -> [Content]:
     lines = safe_call([
         'ls',
         '-lo',
@@ -62,31 +69,27 @@ def destination_ls(path):
         if index < 2:
             continue  # First lines is a total
         parts = line.decode('UTF-8').split(None, 7)
-
-        item = [
-            parts[7],  # name
-            parts[3]  # size
-        ]
-        contents.append(item)
+        content = Content(parts[7], parts[3], parts[0])
+        contents.append(content)
     contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
 # Download file from source
-def download(sourceRoot, destRoot, path, filename):
+def download(source_root: str, dest_root: str, path: str, filename: str):
     result = safe_call([
         'mega-get',
-        sourceRoot + "/" + path + "/" + filename,
-        destRoot + "/" + path
+        source_root + "/" + path + "/" + filename,
+        dest_root + "/" + path
     ])
 
 
 # Remove file from destination
-def destination_remove(destRoot, path, filename):
+def destination_remove(dest_root: str, path: str, filename: str):
     _OLD_FILES = 'OLD_FILES'
     # check if directory exists or not yet
-    old_path = destRoot + '/' + path
-    new_path = destRoot + '/' + _OLD_FILES + '/' + path
+    old_path = dest_root + '/' + path
+    new_path = dest_root + '/' + _OLD_FILES + '/' + path
     if not os.path.exists(new_path):
         os.makedirs(new_path)
     os.replace(old_path + '/' + filename, new_path + '/' + filename)
@@ -127,26 +130,26 @@ while len(pending) > 0:
             destinationItem = destinationContents[destinationIndex]
         else:
             destinationItem = ["zzzzz"]
-        if sourceItem[0] == destinationItem[0]:
+        if sourceItem.name == destinationItem.name:
             # Element exists in both sides
-            print(sourceItem[0])
-            if sourceItem[1] != destinationItem[1]:
+            print(sourceItem.name)
+            if sourceItem.size != destinationItem.size:
                 print("⏬ Existing file, but different size found - updating")
-                download(sourceRoot, destRoot, element, sourceItem[0])
+                download(sourceRoot, destRoot, element, sourceItem.name)
             # Advance both indexes
             sourceIndex += 1
             destinationIndex += 1
-        elif sourceItem[0] < destinationItem[0]:
+        elif sourceItem.name < destinationItem.name:
             # Element exists only in Source
-            print(sourceItem[0])
+            print(sourceItem.name)
             print("⏬ New file")
-            download(sourceRoot, destRoot, element, sourceItem[0])
+            download(sourceRoot, destRoot, element, sourceItem.name)
             sourceIndex += 1
         else:
             # Element exists only in Destination
-            print(destinationItem[0])
+            print(destinationItem.name)
             print("❌ Deprecated file")
-            destination_remove(destRoot, element, destinationItem[0])
+            destination_remove(destRoot, element, destinationItem.name)
             destinationIndex += 1
 
 """
