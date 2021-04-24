@@ -12,6 +12,7 @@
 #   - Premise: Safe but slow if better than quick but inconsistent
 #   - Don't trust dates, only file sizes. If they have different size, the file needs to be updated.
 
+import os
 import subprocess
 
 
@@ -81,30 +82,16 @@ def download(sourceRoot, destRoot, path, filename):
 
 
 # Remove file from destination
-def destination_remove(path, filename):
-    """lines = safe_call([
-        'mega-ls',
-        '-l',
-        '--time-format=ISO6081_WITH_TIME',
-        path
-    ])
-    index: int = 0
-    contents: [] = []
-    for line in lines.splitlines():
-        index += 1
-        if index < 3:
-            continue  # First two lines are just headers
-        parts = line.decode('UTF-8').split(None, 4)
-        item = [
-            parts[4],  # name
-            parts[3],  # datetime
-            parts[2]  # size
-        ]
-        contents.append(item)
-    return contents
-    """
-    print("REMOVING ", path, filename)
-    print("------- not implemented yet")
+def destination_remove(destRoot, path, filename):
+    _OLD_FILES = 'OLD_FILES'
+    # check if directory exists or not yet
+    old_path = destRoot + '/' + path
+    new_path = destRoot + '/' + _OLD_FILES + '/' + path
+    if not os.path.exists(new_path):
+        os.makedirs(new_path)
+    os.replace(old_path + '/' + filename, new_path + '/' + filename)
+    print("Moved to", new_path)
+
 
 # We have release info in secrets file
 # import sys
@@ -159,7 +146,7 @@ while len(pending) > 0:
             # Element exists only in Destination
             print(destinationItem[0])
             print("❌ Deprecated file")
-            destination_remove(element, destinationItem[0])
+            destination_remove(destRoot, element, destinationItem[0])
             destinationIndex += 1
 
 """
