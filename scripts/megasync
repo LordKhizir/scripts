@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # MegaSync
-# Keep your folders in sync with Mega
+# Keep your folders in sync with Mega - ONE WAY ONLY
 #
 # It assumes Mega is your "source of truth".
 # All syncs are then "down" syncs, it won't upload ANYTHING to Mega
@@ -10,9 +10,8 @@
 #   - for each file, check if it needs to be updated
 #   - download file by file
 #   - Premise: Safe but slow if better than quick but inconsistent
+#   - Don't trust dates, only file sizes. If they have different size, the file needs to be updated.
 
-import datetime
-import os
 import subprocess
 
 
@@ -31,7 +30,6 @@ def source_ls(path):
     lines = safe_call([
         'mega-ls',
         '-l',
-        '--time-format=ISO6081_WITH_TIME',
         path
     ])
     index: int = 0
@@ -40,22 +38,20 @@ def source_ls(path):
         index += 1
         if index < 3:
             continue  # First two lines are just headers
-        parts = line.decode('UTF-8').split(None, 4)
+        parts = line.decode('UTF-8').split(None, 5)
         item = [
-            parts[4],  # name
-            parts[3],  # datetime
+            parts[5],  # name
             parts[2]  # size
         ]
         contents.append(item)
-    # Sort before returning.. as source sort ordering can be different that destination
-    contents.sort()
+    contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
 def destination_ls(path):
     lines = safe_call([
         'ls',
-        '-loT',
+        '-lo',
         path
     ])
     index: int = 0
@@ -64,46 +60,25 @@ def destination_ls(path):
         index += 1
         if index < 2:
             continue  # First lines is a total
-        parts = line.decode('UTF-8').split(None, 8)
-        date = datetime.datetime.strptime(parts[7] + "-" + parts[4] + "-" + parts[5], '%Y-%b-%d')
-        formatted_date = datetime.datetime.strftime(date, "%Y-%m-%d")
+        parts = line.decode('UTF-8').split(None, 7)
 
         item = [
-            parts[8],  # name
-            formatted_date + "T" + parts[6],  # datetime
+            parts[7],  # name
             parts[3]  # size
         ]
         contents.append(item)
-    # Sort before returning.. as source sort ordering can be different that destination
-    contents.sort()
+    contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
 # Download file from source
-def source_download(path, filename):
-    """lines = safe_call([
-        'mega-ls',
-        '-l',
-        '--time-format=ISO6081_WITH_TIME',
-        path
+def download(sourceRoot, destRoot, path, filename):
+    result = safe_call([
+        'mega-get',
+        sourceRoot + "/" + path + "/" + filename,
+        destRoot + "/" + path
     ])
-    index: int = 0
-    contents: [] = []
-    for line in lines.splitlines():
-        index += 1
-        if index < 3:
-            continue  # First two lines are just headers
-        parts = line.decode('UTF-8').split(None, 4)
-        item = [
-            parts[4],  # name
-            parts[3],  # datetime
-            parts[2]  # size
-        ]
-        contents.append(item)
-    return contents
-    """
-    print("DOWNLOADING ", path, filename)
-    print("------- not implemented yet")
+
 
 # Remove file from destination
 def destination_remove(path, filename):
@@ -168,12 +143,9 @@ while len(pending) > 0:
         if sourceItem[0] == destinationItem[0]:
             # Element exists in both sides
             print(sourceItem[0])
-            if (sourceItem[1] != destinationItem[1]) or (sourceItem[2] != destinationItem[2]):
-                if sourceItem[1] != destinationItem[1]:
-                    print("⏬ Existing file, but newer version found")
-                    source_download(element, sourceItem[0])
-                else:
-                    print("⚠️ Same date, but different size. WARNING, which is the good one?")
+            if sourceItem[1] != destinationItem[1]:
+                print("⏬ Existing file, but different size found - updating")
+                download(sourceRoot, destRoot, element, sourceItem[0])
             # Advance both indexes
             sourceIndex += 1
             destinationIndex += 1
@@ -181,7 +153,7 @@ while len(pending) > 0:
             # Element exists only in Source
             print(sourceItem[0])
             print("⏬ New file")
-            source_download(element, sourceItem[0])
+            download(sourceRoot, destRoot, element, sourceItem[0])
             sourceIndex += 1
         else:
             # Element exists only in Destination
