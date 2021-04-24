@@ -1,0 +1,236 @@
+#!/usr/bin/python3
+# MegaSync
+# Keep your folders in sync with Mega
+#
+# It assumes Mega is your "source of truth".
+# All syncs are then "down" syncs, it won't upload ANYTHING to Mega
+# Works on top of mega-cmd
+# Does a VERY conservative use of resources:
+#   - loop through folders
+#   - for each file, check if it needs to be updated
+#   - download file by file
+#   - Premise: Safe but slow if better than quick but inconsistent
+
+import datetime
+import os
+import subprocess
+
+
+def safe_call(command):
+    try:
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+        result = proc.stdout.read()
+        return result
+    except subprocess.CalledProcessError:
+        print("--- ERROR ---")
+        exit(1)
+
+
+# Call source ls, get results, and preformat them for later use
+def source_ls(path):
+    lines = safe_call([
+        'mega-ls',
+        '-l',
+        '--time-format=ISO6081_WITH_TIME',
+        path
+    ])
+    index: int = 0
+    contents: [] = []
+    for line in lines.splitlines():
+        index += 1
+        if index < 3:
+            continue  # First two lines are just headers
+        parts = line.decode('UTF-8').split(None, 4)
+        item = [
+            parts[4],  # name
+            parts[3],  # datetime
+            parts[2]  # size
+        ]
+        contents.append(item)
+    # Sort before returning.. as source sort ordering can be different that destination
+    contents.sort()
+    return contents
+
+
+def destination_ls(path):
+    lines = safe_call([
+        'ls',
+        '-loT',
+        path
+    ])
+    index: int = 0
+    contents: [] = []
+    for line in lines.splitlines():
+        index += 1
+        if index < 2:
+            continue  # First lines is a total
+        parts = line.decode('UTF-8').split(None, 8)
+        date = datetime.datetime.strptime(parts[7] + "-" + parts[4] + "-" + parts[5], '%Y-%b-%d')
+        formatted_date = datetime.datetime.strftime(date, "%Y-%m-%d")
+
+        item = [
+            parts[8],  # name
+            formatted_date + "T" + parts[6],  # datetime
+            parts[3]  # size
+        ]
+        contents.append(item)
+    # Sort before returning.. as source sort ordering can be different that destination
+    contents.sort()
+    return contents
+
+
+# Download file from source
+def source_download(path, filename):
+    """lines = safe_call([
+        'mega-ls',
+        '-l',
+        '--time-format=ISO6081_WITH_TIME',
+        path
+    ])
+    index: int = 0
+    contents: [] = []
+    for line in lines.splitlines():
+        index += 1
+        if index < 3:
+            continue  # First two lines are just headers
+        parts = line.decode('UTF-8').split(None, 4)
+        item = [
+            parts[4],  # name
+            parts[3],  # datetime
+            parts[2]  # size
+        ]
+        contents.append(item)
+    return contents
+    """
+    print("DOWNLOADING ", path, filename)
+    print("------- not implemented yet")
+
+# Remove file from destination
+def destination_remove(path, filename):
+    """lines = safe_call([
+        'mega-ls',
+        '-l',
+        '--time-format=ISO6081_WITH_TIME',
+        path
+    ])
+    index: int = 0
+    contents: [] = []
+    for line in lines.splitlines():
+        index += 1
+        if index < 3:
+            continue  # First two lines are just headers
+        parts = line.decode('UTF-8').split(None, 4)
+        item = [
+            parts[4],  # name
+            parts[3],  # datetime
+            parts[2]  # size
+        ]
+        contents.append(item)
+    return contents
+    """
+    print("REMOVING ", path, filename)
+    print("------- not implemented yet")
+
+# We have release info in secrets file
+# import sys
+# sys.path.append("../")
+# from support import TootI_secrets
+
+# TODO retrieve arguments
+# TODO imnplement login if needed
+# TODO apply
+# export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
+
+# TODO get arguments from command line
+sourceRoot: str = "Vault3D"
+destRoot: str = "/Users/toni.navarro/NAS/Vault3D"
+folder: str = "ARC Studios/Havoc Rises - vol 1 [KS] [INCOMPLETE]"
+
+# Pending is implemented as a STACK - so append to end, pop the last element
+pending: [] = [folder]
+while len(pending) > 0:
+    element: str = pending.pop()
+    sourceContents = source_ls(sourceRoot + "/" + element)
+    destinationContents = destination_ls(destRoot + "/" + element)
+
+    # Loop thought BOTH list at the same time
+    sourceIndex: int = 0
+    destinationIndex: int = 0
+    while (sourceIndex < len(sourceContents)) or (destinationIndex < len(destinationContents)):
+        if sourceIndex < len(sourceContents):
+            sourceItem = sourceContents[sourceIndex]
+        else:
+            sourceItem = ["zzzzz"]
+        if destinationIndex < len(destinationContents):
+            destinationItem = destinationContents[destinationIndex]
+        else:
+            destinationItem = ["zzzzz"]
+        if sourceItem[0] == destinationItem[0]:
+            # Element exists in both sides
+            print(sourceItem[0])
+            if (sourceItem[1] != destinationItem[1]) or (sourceItem[2] != destinationItem[2]):
+                if sourceItem[1] != destinationItem[1]:
+                    print("⏬ Existing file, but newer version found")
+                    source_download(element, sourceItem[0])
+                else:
+                    print("⚠️ Same date, but different size. WARNING, which is the good one?")
+            # Advance both indexes
+            sourceIndex += 1
+            destinationIndex += 1
+        elif sourceItem[0] < destinationItem[0]:
+            # Element exists only in Source
+            print(sourceItem[0])
+            print("⏬ New file")
+            source_download(element, sourceItem[0])
+            sourceIndex += 1
+        else:
+            # Element exists only in Destination
+            print(destinationItem[0])
+            print("❌ Deprecated file")
+            destination_remove(element, destinationItem[0])
+            destinationIndex += 1
+
+"""
+for entry in os.scandir("."):
+    if entry.is_file():
+        name, extension = os.path.splitext(entry.name)
+        if extension.lower() in (".rar", ".zip", ".7z"):
+            print("\n========================================================\n")
+            print("Unpacking", entry.name)
+            newFile = workFolder + '/' + name + '.7z'
+            os.mkdir(name)
+            if extension.lower() == ".rar":
+                # Rar5 is not supported by 7z
+                safe_execute('unrar x "' + entry.name + '" "' + name + '"')
+            else:
+                safe_execute('7z x "' + entry.name + '" -o"' + name + '"')
+            fix_double_folder(name)
+
+            print("Packing")
+            safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
+                         '-xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini ' +
+                         '"' + newFile + '" "' + name + '/"')
+            # Remove temp folder for the file
+            safe_execute('rm -r "' + name + '"')
+
+            size_old = os.path.getsize(entry.name)
+            size_new = os.path.getsize(newFile)
+            print("Old size:", size_old, " New size:", size_new)
+            print('Savings:', ((size_old - size_new) * 100) / size_old, '% -- ', size_old - size_new, 'bytes')
+
+            # If the original file was already a 7z, check if new file is smaller than the first one
+            # sometimes it happens, depending on compression method
+            if extension.lower() == ".7z":
+
+                if size_old < size_new:
+                    print("Restoring original file, as it's smaller")
+                    safe_execute('mv "' + entry.name + '" "' + newFile + '"')
+                    size_new = size_old
+                else:
+                    os.remove(entry.path)
+            else:
+                os.remove(entry.path)
+
+            sum_size_old += size_old
+            sum_size_new += size_new
+"""
