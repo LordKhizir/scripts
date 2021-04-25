@@ -62,12 +62,7 @@ def safe_call(command):
 
 
 def safe_path(path: str) -> str:
-    result = path.replace('//', '/')
-    if "'" in result:
-        return '"' + result + '"'
-    else:
-        return "'" + result + "'"
-
+    return path.replace('//', '/')
 
 # Call source ls, get results, and preformat them for later use
 def source_ls(path: str) -> [Content]:
@@ -80,7 +75,7 @@ def source_ls(path: str) -> [Content]:
     index: int = 0
     contents: [] = []
     debug("MEGA result:", lines)
-    skip = True;
+    skip = True
     for line in lines.splitlines():
         index += 1
         debug("MEGA line:", line)
@@ -141,9 +136,10 @@ def download(source_root: str, dest_root: str, path: str, filename: str):
         new_path = dest_root + '/'
         result = safe_call([
             'mega-get',
-            safe_path(source_root + '/' + path + '/' + filename),
-            safe_path(dest_root + '/' + path)
+            source_root + '/' + path + '/' + filename,
+            dest_root + '/' + path
         ])
+    print(result.decode('utf-8'))
 
 
 # Remove file/folder from destination
@@ -153,7 +149,7 @@ def destination_remove(dest_root: str, path: str, content: Content):
     new_path = dest_root + '/' + _OLD_FILES + '/' + path
     if not _DRY_RUN:
         createfolderifneeded(safe_path(new_path))
-        os.replace(safe_path(old_path + '/' + content.name, new_path + '/' + content.name))
+        os.replace(safe_path(old_path + '/' + content.name), safe_path(new_path + '/' + content.name))
     debug("OLD FILE Moved to", new_path)
 
 
@@ -189,7 +185,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--sourceRoot', type=str, nargs='?', help='Source root for MEGA', default="Vault3D")
 parser.add_argument('--destRoot', type=str, nargs='?', help='Local root', default="/Users/toni.navarro/NAS/Vault3D")
 parser.add_argument('--folder', type=str, nargs='?', help='Folder or file to download sync')
-parser.add_argument('--wait', type=str, nargs='?', help="Number of second to wait before MEGA requests", default=5)
+parser.add_argument('--wait', type=str, nargs='?', help="Number of second to wait before MEGA requests", default=2)
 parser.add_argument('--sound', help="Say a voice warning once the process is finished", action="store_true")
 parser.add_argument('--dryrun', help="Only list actions to be performed, but don't execute them", action="store_true")
 parser.add_argument('--debug', help="Print extended info to allow debugging", action="store_true")
