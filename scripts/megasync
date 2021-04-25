@@ -162,11 +162,6 @@ def debug(*info):
         print(info)
 
 
-# We have release info in secrets file
-# import sys
-# sys.path.append("../")
-# from support import TootI_secrets
-
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     description=textwrap.dedent('''\
@@ -191,10 +186,11 @@ parser = argparse.ArgumentParser(
         If a target file or folder is provided, Pack will process it into a single 7z.
         If no target is provided, Pack will process all contents in current folder into individual 7z.
     '''))
-parser.add_argument('sourceRoot', type=str, nargs='?', help='Source root for MEGA')
-parser.add_argument('destRoot', type=str, nargs='?', help='Destination root')
+parser.add_argument('--sourceRoot', type=str, nargs='?', help='Source root for MEGA', default="Vault3D")
+parser.add_argument('--destRoot', type=str, nargs='?', help='Local root', default="/Users/toni.navarro/NAS/Vault3D")
 parser.add_argument('--folder', type=str, nargs='?', help='Folder or file to download sync')
-parser.add_argument('--wait', type=str, nargs='?', help="Number of second to wait before each MEGA request (default: 5)")
+parser.add_argument('--wait', type=str, nargs='?', help="Number of second to wait before MEGA requests", default=5)
+parser.add_argument('--sound', help="Say a voice warning once the process is finished", action="store_true")
 parser.add_argument('--dryrun', help="Only list actions to be performed, but don't execute them", action="store_true")
 parser.add_argument('--debug', help="Print extended info to allow debugging", action="store_true")
 args = parser.parse_args()
@@ -206,17 +202,8 @@ debug_mode = args.debug
 # export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
 
 
-sourceRoot: str
-if args.sourceRoot is None:
-    sourceRoot = "Vault3D"
-else:
-    sourceRoot = args.sourceRoot
-
-destRoot: str
-if args.destRoot is None:
-    destRoot = "/Users/toni.navarro/NAS/Vault3D"
-else:
-    destRoot = args.destRoot
+sourceRoot = args.sourceRoot
+destRoot = args.destRoot
 
 folder: str
 if args.folder is None:
@@ -224,10 +211,7 @@ if args.folder is None:
 else:
     folder = '/' + args.folder
 
-if args.wait is None:
-    _WAIT_SECONDS = 5
-else:
-    _WAIT_SECONDS = int(args.wait)
+_WAIT_SECONDS = int(args.wait)
 
 if args.dryrun:
     _DRY_RUN = True
