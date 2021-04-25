@@ -30,23 +30,18 @@ class Content:
             self.content_type = 'D'
         else:
             self.content_type = 'F'
-        self.path = path
+        self.path = safe_path(path)
         self.level = level
+        self.fullname = self.path + "/" + self.normalized_name
 
     def __eq__(self, other):
-        return self.normalized_name == other.normalized_name
+        return self.fullname == other.fullname
 
     def __lt__(self, other):
-        if self.name == "__LAST__":
-            return False
-        else:
-            return self.normalized_name < other.normalized_name
+        return self.fullname < other.fullname
 
     def __gt__(self, other):
-        if self.name == "__LAST__":
-            return True
-        else:
-            return self.normalized_name > other.normalized_name
+        return self.fullname > other.fullname
 
     def is_dir(self):
         return self.content_type == 'D'
@@ -59,7 +54,8 @@ class Content:
                '] size:[' + str(self.size) + \
                '] content_type:[' + self.content_type + \
                '] path:[' + self.path + \
-               '] level:[' + str(self.level) + ']]'
+               '] level:[' + str(self.level) + \
+               '] fullname:[' + self.fullname + ']]'
 
 
 def safe_call(command, ignore_error=False):
@@ -305,6 +301,10 @@ while len(pending) > 0:
         try:
             # Find and get matching element
             destinationItem = destinationContents[destinationContents.index(sourceItem)]
+            if sourceItem.path != destinationItem.path:
+                print(sourceItem.to_string())
+                print(destinationItem.to_string())
+                exit(0)
             destinationContents.remove(destinationItem)  # Purge it
         except ValueError:
             destinationItem = None
