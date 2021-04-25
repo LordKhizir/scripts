@@ -13,12 +13,15 @@ import unicodedata
 
 # Globals
 _OLD_FILES = 'OLD_FILES'  # Const
-_WAIT_SECONDS: int = 5
+_WAIT_SECONDS: int = 2
+_TOP_LEVELS: int = 1
+_FIRST_LEVEL_CONTINUE_FROM: str = ""
 _DRY_RUN: bool = False
+_SHOW: bool = False
 
 
 class Content:
-    def __init__(self, name: str, size: int, content_type: str):
+    def __init__(self, name: str, size: int, content_type: str, path: str, level: int):
         self.name = name
         self.normalized_name = ''.join(c for c in unicodedata.normalize('NFD', name)
                                        if unicodedata.category(c) != 'Mn')
@@ -27,6 +30,8 @@ class Content:
             self.content_type = 'D'
         else:
             self.content_type = 'F'
+        self.path = path
+        self.level = level
 
     def __eq__(self, other):
         return self.normalized_name == other.normalized_name
@@ -49,11 +54,21 @@ class Content:
     def is_file(self):
         return self.content_type == 'F'
 
+    def to_string(self):
+        return '[name:[' + self.name + \
+               '] size:[' + str(self.size) + \
+               '] content_type:[' + self.content_type + \
+               '] path:[' + self.path + \
+               '] level:[' + str(self.level) + ']]'
 
-def safe_call(command):
+
+def safe_call(command, ignore_error=False):
     try:
         debug("COMMAND", command)
-        proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+        if ignore_error:
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        else:
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE)
         result = proc.stdout.read()
         return result
     except subprocess.CalledProcessError:
@@ -62,64 +77,85 @@ def safe_call(command):
 
 
 def safe_path(path: str) -> str:
-    return path.replace('//', '/')
+    while path.find('//') != -1:
+        path = path.replace('//', '/')
+    return path
+
 
 # Call source ls, get results, and preformat them for later use
-def source_ls(path: str) -> [Content]:
+def source_ls(basePath: str, element: Content) -> [Content]:
     time.sleep(_WAIT_SECONDS)
+    if element.level >= _TOP_LEVELS:
+        list_mode = "-lr"
+    else:
+        list_mode = "-l"
     lines = safe_call([
         'mega-ls',
-        '-l',
-        path
+        list_mode,
+        safe_path(basePath + '/' + element.path + '/' + element.name)
     ])
     index: int = 0
     contents: [] = []
     debug("MEGA result:", lines)
-    skip = True
+    content_path = element.path + '/' + element.name
     for line in lines.splitlines():
         index += 1
         debug("MEGA line:", line)
-        decoded_line = line.decode('utf-8')
-        if decoded_line.startswith('FLAGS'):
-            # Mega formats output with different number of header lines!
-            # Real data starts AFTER flags header, etc.
-            skip = False;
-            continue  # Skip headers
-        if skip:
+        decoded_line = line.decode('utf-8').strip()
+        if decoded_line.startswith('FLAGS') or decoded_line == '':
+            continue
+        if decoded_line.endswith(':'):
+            content_path = decoded_line.replace(basePath, '', 1).strip(':')
             continue
         parts = decoded_line.split(None, 5)
-        content = Content(parts[5], parts[2], parts[0])
-        debug("MEGA content", content.name)
-        if (content.name != content.normalized_name) or (content.name.endswith("models")):
+        content = Content(parts[5], parts[2], parts[0], content_path, element.level + 1)
+        debug("MEGA content", content.to_string())
+        if (content.name != content.normalized_name) or (content.name.find(".getxfer.") != -1) or (content.name.find(".DS_Store") != -1):
             print("\t🛑", "IGNORING Mega", content.name, content.normalized_name)
+        elif (element.level == 0) and (_FIRST_LEVEL_CONTINUE_FROM!="") and (_FIRST_LEVEL_CONTINUE_FROM < content.name):
+            print("\t⚫️", "SKIPPING Mega", content.name)
+        elif content.content_type == 'D' and content.level > _TOP_LEVELS:
+            None
         else:
             contents.append(content)
-    contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
-def destination_ls(path: str) -> [Content]:
+def destination_ls(basePath: str, element: Content) -> [Content]:
+    if element.level >= _TOP_LEVELS:
+        list_mode = "-loR"
+    else:
+        list_mode = "-lo"
     lines = safe_call([
         'ls',
-        '-lo',
-        path
-    ])
+        list_mode,
+        safe_path(basePath + '/' + element.path + '/' + element.name)
+    ], ignore_error=True)
     index: int = 0
     contents: [] = []
+    content_path = element.path + '/' + element.name
     for line in lines.splitlines():
         index += 1
-        if index < 2:
-            continue  # First lines is a total
+        debug("LOCAL line:", line)
+        decoded_line = line.decode('utf-8').strip()
+        if decoded_line.startswith('total') or decoded_line == '':
+            continue
+        if decoded_line.endswith(':'):
+            content_path = decoded_line.replace(basePath, '', 1).strip(':')
+            continue
         parts = line.decode('utf-8').split(None, 7)
         if parts[7] == _OLD_FILES:
             continue  # The OLD FILES dir must not be processed... or we'll recurse it
-        content = Content(parts[7], parts[3], parts[0])
-        debug("LOCAL content", content.name)
-        if (content.name != content.normalized_name) or (content.name.endswith("models")):
+        content = Content(parts[7], parts[3], parts[0], content_path, element.level + 1)
+        debug("LOCAL content", content.to_string())
+        if content.name != content.normalized_name:
             print("\t🛑", "IGNORING LOCAL", content.name, content.normalized_name)
+        elif (element.level == 0) and (_FIRST_LEVEL_CONTINUE_FROM!="") and (_FIRST_LEVEL_CONTINUE_FROM<content.name):
+            print("\t⚫️", "SKIPPING LOCAL", content.name)
+        elif content.content_type == 'D' and content.level > _TOP_LEVELS:
+            None
         else:
             contents.append(content)
-    contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
@@ -130,23 +166,23 @@ def createfolderifneeded(path):
 
 
 # Download file from source
-def download(source_root: str, dest_root: str, path: str, filename: str):
+def download(source_root: str, dest_root: str, content: Content):
     if not _DRY_RUN:
-        createfolderifneeded(safe_path(dest_root + '/' + path))
-        new_path = dest_root + '/'
+        createfolderifneeded(safe_path(dest_root + '/' + content.path))
+        time.sleep(_WAIT_SECONDS)
         result = safe_call([
             'mega-get',
-            source_root + '/' + path + '/' + filename,
-            dest_root + '/' + path
+            source_root + '/' + content.path + '/' + content.name,
+            dest_root + '/' + content.path
         ])
-    print(result.decode('utf-8'))
+        print(result.decode('utf-8'))
 
 
 # Remove file/folder from destination
-def destination_remove(dest_root: str, path: str, content: Content):
+def destination_remove(dest_root: str, content: Content):
     # check if directory exists or not yet
-    old_path = dest_root + '/' + path
-    new_path = dest_root + '/' + _OLD_FILES + '/' + path
+    old_path = dest_root + '/' + content.path
+    new_path = dest_root + '/' + _OLD_FILES + '/' + content.path
     if not _DRY_RUN:
         createfolderifneeded(safe_path(new_path))
         os.replace(safe_path(old_path + '/' + content.name), safe_path(new_path + '/' + content.name))
@@ -182,18 +218,52 @@ parser = argparse.ArgumentParser(
         If a target file or folder is provided, Pack will process it into a single 7z.
         If no target is provided, Pack will process all contents in current folder into individual 7z.
     '''))
-parser.add_argument('--sourceRoot', type=str, nargs='?', help='Source root for MEGA', default="Vault3D")
-parser.add_argument('--destRoot', type=str, nargs='?', help='Local root', default="/Users/toni.navarro/NAS/Vault3D")
-parser.add_argument('--folder', type=str, nargs='?', help='Folder or file to download sync')
-parser.add_argument('--wait', type=str, nargs='?', help="Number of second to wait before MEGA requests", default=2)
-parser.add_argument('--sound', help="Say a voice warning once the process is finished", action="store_true")
-parser.add_argument('--dryrun', help="Only list actions to be performed, but don't execute them", action="store_true")
-parser.add_argument('--debug', help="Print extended info to allow debugging", action="store_true")
+parser.add_argument('--sourceRoot',
+                    help='Source root for MEGA',
+                    type=str,
+                    nargs='?',
+                    default="Vault3D")
+parser.add_argument('--destRoot',
+                    help='Local root',
+                    type=str,
+                    nargs='?',
+                    default="/Users/toni.navarro/NAS/Vault3D")
+parser.add_argument('--folder',
+                    help='Folder or file to download sync',
+                    type=str,
+                    nargs='?')
+parser.add_argument('--toplevels',
+                    help='Levels of folders to be done traversed before doing them as a tree',
+                    type=int,
+                    nargs='?',
+                    default=_TOP_LEVELS)
+parser.add_argument('--continue_from',
+                    help='If the process stopped, you can provide a LEVEL 1 from where to continue',
+                    type=str,
+                    nargs="?",
+                    default="")
+parser.add_argument('--wait',
+                    help="Number of second to wait before MEGA requests",
+                    type=int,
+                    nargs='?',
+                    default=_WAIT_SECONDS)
+parser.add_argument('--sound',
+                    help="Say a voice warning once the process is finished",
+                    action="store_true")
+parser.add_argument('--dryrun',
+                    help="Only list actions to be performed, but don't execute them",
+                    action="store_true")
+parser.add_argument('--show',
+                    help="Print info about already synced files, not only modifications",
+                    action="store_true")
+parser.add_argument('--debug',
+                    help="Print extended info to allow debugging",
+                    action="store_true")
 args = parser.parse_args()
 
 debug_mode = args.debug
 
-# TODO imnplement login if needed
+# TODO implement login if needed
 # TODO apply
 # export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
 
@@ -207,20 +277,27 @@ if args.folder is None:
 else:
     folder = '/' + args.folder
 
-_WAIT_SECONDS = int(args.wait)
+_TOP_LEVELS = args.toplevels
+_WAIT_SECONDS = args.wait
+_FIRST_LEVEL_CONTINUE_FROM = args.continue_from
 
 if args.dryrun:
     _DRY_RUN = True
 
+if args.show:
+    _SHOW = True
+
 # Pending is implemented as a STACK - so append to end, pop the last element
-pending: [] = [folder]
+actual_level: int = 0;
+baseContent = Content(folder, 0, 'd', '', actual_level)
+pending: [] = [baseContent]
 while len(pending) > 0:
-    element: str = pending.pop()
-    print("🔁 Syncing", element)
+    element: Content = pending.pop()
+    print("🔁 Syncing", element.path, element.name)
     if debug_mode:
         input("Press ENTER to continue")
-    sourceContents = source_ls(sourceRoot + element)
-    destinationContents = destination_ls(destRoot + element)
+    sourceContents = source_ls(sourceRoot, element)
+    destinationContents = destination_ls(destRoot, element)
 
     # First version of this program used a simultaneous loop through booth list.
     # But as it's prone to errors and more difficult to debug and refactor... just abandoned it in favor of sequential.
@@ -234,25 +311,30 @@ while len(pending) > 0:
 
         if destinationItem is None:  # Element exists only in Source
             if sourceItem.is_dir():
-                print("\t⏩", element, sourceItem.name, "- New folder added to queue")
-                pending.append(element + '/' + sourceItem.name)
+                print("\t⏩", sourceItem.path, '/', sourceItem.name, "- New folder added to queue")
+                pending.append(sourceItem)
             else:
-                print("\t⏬", element, sourceItem.name, "- New file - downloading")
-                download(sourceRoot, destRoot, element, sourceItem.name)
+                print("\t⏬", sourceItem.path, '/', sourceItem.name, "- New file - downloading")
+                download(sourceRoot, destRoot, sourceItem)
         else:  # Element exists in both sides
             if sourceItem.is_dir():
-                print("\t⏩", element, sourceItem.name, "- Existing folder, added to queue")
-                pending.append(element + '/' + sourceItem.name)
+                print("\t⏩", sourceItem.path, '/', sourceItem.name, "- Existing folder, added to queue")
+                pending.append(sourceItem)
             else:
                 if sourceItem.size == destinationItem.size:
-                    print("\t✅", element, sourceItem.name, "Already downloaded")
+                    if _SHOW:
+                        print("\t✅", sourceItem.path, '/', sourceItem.name)
                 else:
-                    print("\t⏬", element, sourceItem.name, "- Existing file, but different size found - updating")
-                    download(sourceRoot, destRoot, element, sourceItem.name)
+                    print("\t⏬", sourceItem.path, '/', sourceItem.name,
+                          "- Existing file, but different size found - updating")
+                    destination_remove(destRoot, destinationItem)
+                    download(sourceRoot, destRoot, sourceItem)
 
     for destinationItem in destinationContents:  # Those element exists only in Destination
         if destinationItem.is_dir():
-            print("\t❌", element, destinationItem.name, "- Deprecated folder - moving to deleted folder")
+            print("\t❌", destinationItem.path, '/', destinationItem.name,
+                  "- Deprecated folder - moving to deleted folder")
         else:
-            print("\t❌", element, destinationItem.name, "- Deprecated file - moving to deleted folder")
-        destination_remove(destRoot, element, destinationItem)
+            print("\t❌", destinationItem.path, '/', destinationItem.name,
+                  "- Deprecated file - moving to deleted folder")
+        #destination_remove(destRoot, element, destinationItem)
