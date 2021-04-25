@@ -1,33 +1,58 @@
 #!/usr/bin/python3
-# MegaSync
-# Keep your folders in sync with Mega - ONE WAY ONLY
-#
-# It assumes Mega is your "source of truth".
-# All syncs are then "down" syncs, it won't upload ANYTHING to Mega
-# Works on top of mega-cmd
-# Does a VERY conservative use of resources:
-#   - loop through folders
-#   - for each file, check if it needs to be updated
-#   - download file by file
-#   - Premise: Safe but slow if better than quick but inconsistent
-#   - Don't trust dates, only file sizes. If they have different size, the file needs to be updated.
 
+
+# PROBAR CON
+# megasync --dryrun --folder "Rocket Pig Games/Rocket Pig Games - Tusklands [KS]" --debug
+
+import argparse
 import os
 import subprocess
+import textwrap
+import time
+import unicodedata
+
+# Globals
+_OLD_FILES = 'OLD_FILES'  # Const
+_WAIT_SECONDS: int = 5
+_DRY_RUN: bool = False
 
 
 class Content:
-    def __init__(self, name, size, type):
+    def __init__(self, name: str, size: int, content_type: str):
         self.name = name
+        self.normalized_name = ''.join(c for c in unicodedata.normalize('NFD', name)
+                                       if unicodedata.category(c) != 'Mn')
         self.size = size
-        self.type = type
+        if content_type.startswith('d'):
+            self.content_type = 'D'
+        else:
+            self.content_type = 'F'
+
+    def __eq__(self, other):
+        return self.normalized_name == other.normalized_name
 
     def __lt__(self, other):
-        return self.name < other.name
+        if self.name == "__LAST__":
+            return False
+        else:
+            return self.normalized_name < other.normalized_name
+
+    def __gt__(self, other):
+        if self.name == "__LAST__":
+            return True
+        else:
+            return self.normalized_name > other.normalized_name
+
+    def is_dir(self):
+        return self.content_type == 'D'
+
+    def is_file(self):
+        return self.content_type == 'F'
 
 
 def safe_call(command):
     try:
+        debug("COMMAND", command)
         proc = subprocess.Popen(command, stdout=subprocess.PIPE)
         result = proc.stdout.read()
         return result
@@ -36,8 +61,17 @@ def safe_call(command):
         exit(1)
 
 
+def safe_path(path: str) -> str:
+    result = path.replace('//', '/')
+    if "'" in result:
+        return '"' + result + '"'
+    else:
+        return "'" + result + "'"
+
+
 # Call source ls, get results, and preformat them for later use
 def source_ls(path: str) -> [Content]:
+    time.sleep(_WAIT_SECONDS)
     lines = safe_call([
         'mega-ls',
         '-l',
@@ -45,13 +79,26 @@ def source_ls(path: str) -> [Content]:
     ])
     index: int = 0
     contents: [] = []
+    debug("MEGA result:", lines)
+    skip = True;
     for line in lines.splitlines():
         index += 1
-        if index < 3:
-            continue  # First two lines are just headers
-        parts = line.decode('UTF-8').split(None, 5)
+        debug("MEGA line:", line)
+        decoded_line = line.decode('utf-8')
+        if decoded_line.startswith('FLAGS'):
+            # Mega formats output with different number of header lines!
+            # Real data starts AFTER flags header, etc.
+            skip = False;
+            continue  # Skip headers
+        if skip:
+            continue
+        parts = decoded_line.split(None, 5)
         content = Content(parts[5], parts[2], parts[0])
-        contents.append(content)
+        debug("MEGA content", content.name)
+        if (content.name != content.normalized_name) or (content.name.endswith("models")):
+            print("\t🛑", "IGNORING Mega", content.name, content.normalized_name)
+        else:
+            contents.append(content)
     contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
@@ -68,32 +115,51 @@ def destination_ls(path: str) -> [Content]:
         index += 1
         if index < 2:
             continue  # First lines is a total
-        parts = line.decode('UTF-8').split(None, 7)
+        parts = line.decode('utf-8').split(None, 7)
+        if parts[7] == _OLD_FILES:
+            continue  # The OLD FILES dir must not be processed... or we'll recurse it
         content = Content(parts[7], parts[3], parts[0])
-        contents.append(content)
+        debug("LOCAL content", content.name)
+        if (content.name != content.normalized_name) or (content.name.endswith("models")):
+            print("\t🛑", "IGNORING LOCAL", content.name, content.normalized_name)
+        else:
+            contents.append(content)
     contents.sort()  # Sort before returning.. as source sort ordering can be different that destination
     return contents
 
 
+def createfolderifneeded(path):
+    if not _DRY_RUN:
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+
 # Download file from source
 def download(source_root: str, dest_root: str, path: str, filename: str):
-    result = safe_call([
-        'mega-get',
-        source_root + "/" + path + "/" + filename,
-        dest_root + "/" + path
-    ])
+    if not _DRY_RUN:
+        createfolderifneeded(safe_path(dest_root + '/' + path))
+        new_path = dest_root + '/'
+        result = safe_call([
+            'mega-get',
+            safe_path(source_root + '/' + path + '/' + filename),
+            safe_path(dest_root + '/' + path)
+        ])
 
 
-# Remove file from destination
-def destination_remove(dest_root: str, path: str, filename: str):
-    _OLD_FILES = 'OLD_FILES'
+# Remove file/folder from destination
+def destination_remove(dest_root: str, path: str, content: Content):
     # check if directory exists or not yet
     old_path = dest_root + '/' + path
     new_path = dest_root + '/' + _OLD_FILES + '/' + path
-    if not os.path.exists(new_path):
-        os.makedirs(new_path)
-    os.replace(old_path + '/' + filename, new_path + '/' + filename)
-    print("Moved to", new_path)
+    if not _DRY_RUN:
+        createfolderifneeded(safe_path(new_path))
+        os.replace(safe_path(old_path + '/' + content.name, new_path + '/' + content.name))
+    debug("OLD FILE Moved to", new_path)
+
+
+def debug(*info):
+    if debug_mode:
+        print(info)
 
 
 # We have release info in secrets file
@@ -101,98 +167,112 @@ def destination_remove(dest_root: str, path: str, filename: str):
 # sys.path.append("../")
 # from support import TootI_secrets
 
-# TODO retrieve arguments
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=textwrap.dedent('''\
+    megasync
+    Keep your folders in sync with Mega - ONE WAY ONLY
+
+    It assumes Mega is your "source of truth".
+    All syncs are then "down" syncs, it won't upload ANYTHING to Mega
+    Works on top of mega-cmd, so you need to have it installed.
+    Remember than to use from command-line you mast execute
+        export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
+    
+    Does a VERY conservative use of resources:
+    - loop through folders
+    - for each file, check if it needs to be updated
+    - download file by file
+    - Premise: Safe but slow if better than quick but inconsistent
+    - Don't trust dates, only file sizes. If they have different size, the file needs to be updated.
+
+    megasync
+        Compress directories and files as 7z optimized files.
+        If a target file or folder is provided, Pack will process it into a single 7z.
+        If no target is provided, Pack will process all contents in current folder into individual 7z.
+    '''))
+parser.add_argument('sourceRoot', type=str, nargs='?', help='Source root for MEGA')
+parser.add_argument('destRoot', type=str, nargs='?', help='Destination root')
+parser.add_argument('--folder', type=str, nargs='?', help='Folder or file to download sync')
+parser.add_argument('--wait', type=str, nargs='?', help="Number of second to wait before each MEGA request (default: 5)")
+parser.add_argument('--dryrun', help="Only list actions to be performed, but don't execute them", action="store_true")
+parser.add_argument('--debug', help="Print extended info to allow debugging", action="store_true")
+args = parser.parse_args()
+
+debug_mode = args.debug
+
 # TODO imnplement login if needed
 # TODO apply
 # export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
 
-# TODO get arguments from command line
-sourceRoot: str = "Vault3D"
-destRoot: str = "/Users/toni.navarro/NAS/Vault3D"
-folder: str = "ARC Studios/Havoc Rises - vol 1 [KS] [INCOMPLETE]"
+
+sourceRoot: str
+if args.sourceRoot is None:
+    sourceRoot = "Vault3D"
+else:
+    sourceRoot = args.sourceRoot
+
+destRoot: str
+if args.destRoot is None:
+    destRoot = "/Users/toni.navarro/NAS/Vault3D"
+else:
+    destRoot = args.destRoot
+
+folder: str
+if args.folder is None:
+    folder = ""
+else:
+    folder = '/' + args.folder
+
+if args.wait is None:
+    _WAIT_SECONDS = 5
+else:
+    _WAIT_SECONDS = int(args.wait)
+
+if args.dryrun:
+    _DRY_RUN = True
 
 # Pending is implemented as a STACK - so append to end, pop the last element
 pending: [] = [folder]
 while len(pending) > 0:
     element: str = pending.pop()
-    sourceContents = source_ls(sourceRoot + "/" + element)
-    destinationContents = destination_ls(destRoot + "/" + element)
+    print("🔁 Syncing", element)
+    if debug_mode:
+        input("Press ENTER to continue")
+    sourceContents = source_ls(sourceRoot + element)
+    destinationContents = destination_ls(destRoot + element)
 
-    # Loop thought BOTH list at the same time
-    sourceIndex: int = 0
-    destinationIndex: int = 0
-    while (sourceIndex < len(sourceContents)) or (destinationIndex < len(destinationContents)):
-        if sourceIndex < len(sourceContents):
-            sourceItem = sourceContents[sourceIndex]
-        else:
-            sourceItem = ["zzzzz"]
-        if destinationIndex < len(destinationContents):
-            destinationItem = destinationContents[destinationIndex]
-        else:
-            destinationItem = ["zzzzz"]
-        if sourceItem.name == destinationItem.name:
-            # Element exists in both sides
-            print(sourceItem.name)
-            if sourceItem.size != destinationItem.size:
-                print("⏬ Existing file, but different size found - updating")
+    # First version of this program used a simultaneous loop through booth list.
+    # But as it's prone to errors and more difficult to debug and refactor... just abandoned it in favor of sequential.
+    for sourceItem in sourceContents:
+        try:
+            # Find and get matching element
+            destinationItem = destinationContents[destinationContents.index(sourceItem)]
+            destinationContents.remove(destinationItem)  # Purge it
+        except ValueError:
+            destinationItem = None
+
+        if destinationItem is None:  # Element exists only in Source
+            if sourceItem.is_dir():
+                print("\t⏩", element, sourceItem.name, "- New folder added to queue")
+                pending.append(element + '/' + sourceItem.name)
+            else:
+                print("\t⏬", element, sourceItem.name, "- New file - downloading")
                 download(sourceRoot, destRoot, element, sourceItem.name)
-            # Advance both indexes
-            sourceIndex += 1
-            destinationIndex += 1
-        elif sourceItem.name < destinationItem.name:
-            # Element exists only in Source
-            print(sourceItem.name)
-            print("⏬ New file")
-            download(sourceRoot, destRoot, element, sourceItem.name)
-            sourceIndex += 1
-        else:
-            # Element exists only in Destination
-            print(destinationItem.name)
-            print("❌ Deprecated file")
-            destination_remove(destRoot, element, destinationItem.name)
-            destinationIndex += 1
-
-"""
-for entry in os.scandir("."):
-    if entry.is_file():
-        name, extension = os.path.splitext(entry.name)
-        if extension.lower() in (".rar", ".zip", ".7z"):
-            print("\n========================================================\n")
-            print("Unpacking", entry.name)
-            newFile = workFolder + '/' + name + '.7z'
-            os.mkdir(name)
-            if extension.lower() == ".rar":
-                # Rar5 is not supported by 7z
-                safe_execute('unrar x "' + entry.name + '" "' + name + '"')
+        else:  # Element exists in both sides
+            if sourceItem.is_dir():
+                print("\t⏩", element, sourceItem.name, "- Existing folder, added to queue")
+                pending.append(element + '/' + sourceItem.name)
             else:
-                safe_execute('7z x "' + entry.name + '" -o"' + name + '"')
-            fix_double_folder(name)
-
-            print("Packing")
-            safe_execute('7za a -t7z -m0=lzma2 -mx=9 -mqs=on -mfb=64 -md=1024m -ms=on ' +
-                         '-xr!.DS_Store -xr!Thumbs.db -xr!desktop.ini ' +
-                         '"' + newFile + '" "' + name + '/"')
-            # Remove temp folder for the file
-            safe_execute('rm -r "' + name + '"')
-
-            size_old = os.path.getsize(entry.name)
-            size_new = os.path.getsize(newFile)
-            print("Old size:", size_old, " New size:", size_new)
-            print('Savings:', ((size_old - size_new) * 100) / size_old, '% -- ', size_old - size_new, 'bytes')
-
-            # If the original file was already a 7z, check if new file is smaller than the first one
-            # sometimes it happens, depending on compression method
-            if extension.lower() == ".7z":
-
-                if size_old < size_new:
-                    print("Restoring original file, as it's smaller")
-                    safe_execute('mv "' + entry.name + '" "' + newFile + '"')
-                    size_new = size_old
+                if sourceItem.size == destinationItem.size:
+                    print("\t✅", element, sourceItem.name, "Already downloaded")
                 else:
-                    os.remove(entry.path)
-            else:
-                os.remove(entry.path)
+                    print("\t⏬", element, sourceItem.name, "- Existing file, but different size found - updating")
+                    download(sourceRoot, destRoot, element, sourceItem.name)
 
-            sum_size_old += size_old
-            sum_size_new += size_new
-"""
+    for destinationItem in destinationContents:  # Those element exists only in Destination
+        if destinationItem.is_dir():
+            print("\t❌", element, destinationItem.name, "- Deprecated folder - moving to deleted folder")
+        else:
+            print("\t❌", element, destinationItem.name, "- Deprecated file - moving to deleted folder")
+        destination_remove(destRoot, element, destinationItem)
