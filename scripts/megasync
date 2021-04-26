@@ -106,14 +106,18 @@ def source_ls(basePath: str, element: Content) -> [Content]:
         parts = decoded_line.split(None, 5)
         content = Content(parts[5], parts[2], parts[0], content_path, element.level + 1)
         debug("MEGA content", content.to_string())
-        if (content.name != content.normalized_name) or (content.name.find(".getxfer.") != -1) or (content.name.find(".DS_Store") != -1):
-            print("\t🛑", "IGNORING Mega", content.name, content.normalized_name)
-        elif (element.level == 0) and (_FIRST_LEVEL_CONTINUE_FROM!="") and (_FIRST_LEVEL_CONTINUE_FROM < content.name):
-            print("\t⚫️", "SKIPPING Mega", content.name)
-        elif content.content_type == 'D' and content.level > _TOP_LEVELS:
+        if (content.name != content.normalized_name) \
+                or (content.name.find(".getxfer.") != -1) \
+                or (content.name.find(".DS_Store") != -1) \
+                or (content.name.startswith("._")):
+            print("\t🛑", "IGNORING Mega", content.path, content.name, content.normalized_name)
+        elif content.content_type == 'D' \
+                and content.level > _TOP_LEVELS:
             None
         else:
             contents.append(content)
+        if (element.level == 0) and (content.name == _FIRST_LEVEL_CONTINUE_FROM):
+            break
     return contents
 
 
@@ -145,13 +149,14 @@ def destination_ls(basePath: str, element: Content) -> [Content]:
         content = Content(parts[7], parts[3], parts[0], content_path, element.level + 1)
         debug("LOCAL content", content.to_string())
         if content.name != content.normalized_name:
-            print("\t🛑", "IGNORING LOCAL", content.name, content.normalized_name)
-        elif (element.level == 0) and (_FIRST_LEVEL_CONTINUE_FROM!="") and (_FIRST_LEVEL_CONTINUE_FROM<content.name):
-            print("\t⚫️", "SKIPPING LOCAL", content.name)
-        elif content.content_type == 'D' and content.level > _TOP_LEVELS:
+            print("\t🛑", "IGNORING LOCAL", content.path, content.name, content.normalized_name)
+        elif (content.content_type == 'D') \
+                and (content.level > _TOP_LEVELS):
             None
         else:
             contents.append(content)
+        if (element.level == 0) and (content.name == _FIRST_LEVEL_CONTINUE_FROM):
+            break
     return contents
 
 
@@ -284,15 +289,18 @@ if args.show:
     _SHOW = True
 
 # Pending is implemented as a STACK - so append to end, pop the last element
-actual_level: int = 0;
+actual_level: int = 0
 baseContent = Content(folder, 0, 'd', '', actual_level)
 pending: [] = [baseContent]
 while len(pending) > 0:
     element: Content = pending.pop()
-    print("🔁 Syncing", element.path, element.name)
-    if debug_mode:
-        input("Press ENTER to continue")
-    sourceContents = source_ls(sourceRoot, element)
+    sourceContents: [Content] = []
+    destinationContents: [Content] = []
+    while len(sourceContents) == 0:
+        print("🔁 Syncing", element.path, element.name)
+        if debug_mode:
+            input("Press ENTER to continue")
+        sourceContents = source_ls(sourceRoot, element)
     destinationContents = destination_ls(destRoot, element)
 
     # First version of this program used a simultaneous loop through booth list.
@@ -331,10 +339,14 @@ while len(pending) > 0:
                     download(sourceRoot, destRoot, sourceItem)
 
     for destinationItem in destinationContents:  # Those element exists only in Destination
+        if (destinationItem.level == 1) and _FIRST_LEVEL_CONTINUE_FROM != "":
+            # In case of "Continue from", on first level we should take no action
+            # Diff sorts + filtering makes some elements not reliable
+            break
         if destinationItem.is_dir():
             print("\t❌", destinationItem.path, '/', destinationItem.name,
                   "- Deprecated folder - moving to deleted folder")
         else:
             print("\t❌", destinationItem.path, '/', destinationItem.name,
                   "- Deprecated file - moving to deleted folder")
-        #destination_remove(destRoot, element, destinationItem)
+        # destination_remove(destRoot, element, destinationItem)
