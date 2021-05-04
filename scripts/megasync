@@ -195,6 +195,12 @@ def debug(*info):
         print(info)
 
 
+def startMega():
+    if 'MEGAcmd' not in os.environ['PATH']:
+        os.environ['PATH'] += ':/Applications/MEGAcmd.app/Contents/MacOS'
+    safe_call(['mega-version'])
+
+
 parser = argparse.ArgumentParser(
     formatter_class=argparse.RawDescriptionHelpFormatter,
     description=textwrap.dedent('''\
@@ -204,8 +210,6 @@ parser = argparse.ArgumentParser(
     It assumes Mega is your "source of truth".
     All syncs are then "down" syncs, it won't upload ANYTHING to Mega
     Works on top of mega-cmd, so you need to have it installed.
-    Remember than to use from command-line you mast execute
-        export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
     
     Does a VERY conservative use of resources:
     - loop through folders
@@ -265,9 +269,8 @@ args = parser.parse_args()
 debug_mode = args.debug
 
 # TODO implement login if needed
-# TODO apply
-# export PATH=/Applications/MEGAcmd.app/Contents/MacOS:$PATH
 
+startMega()
 
 sourceRoot = args.sourceRoot
 destRoot = args.destRoot

@@ -22,7 +22,7 @@ else
   maxdepth="-maxdepth 1"
 fi
 
-find . -type f ${maxdepth} \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.tiff" -o -iname "*.bmp" \)  |
+find . -type f ${maxdepth} \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.tiff" -o -iname "*.bmp" \) -and -not -name "._*" |
 while read file;
 do
   extension=${file##*.}
