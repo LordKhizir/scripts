@@ -223,16 +223,15 @@ parser = argparse.ArgumentParser(
         If a target file or folder is provided, Pack will process it into a single 7z.
         If no target is provided, Pack will process all contents in current folder into individual 7z.
     '''))
-parser.add_argument('--sourceRoot',
-                    help='Source root for MEGA',
+parser.add_argument('root',
+                    help='Root folder to be synced',
+                    type=str,
+                    nargs=1)
+parser.add_argument('--destination',
+                    help='Local FS destination folder',
                     type=str,
                     nargs='?',
-                    default="Vault3D")
-parser.add_argument('--destRoot',
-                    help='Local root',
-                    type=str,
-                    nargs='?',
-                    default="/Users/toni.navarro/NAS/Vault3D")
+                    default="/Users/toni.navarro/NAS")
 parser.add_argument('--folder',
                     help='Folder or file to download sync',
                     type=str,
@@ -272,8 +271,8 @@ debug_mode = args.debug
 
 startMega()
 
-sourceRoot = args.sourceRoot
-destRoot = args.destRoot
+sourceRoot = args.root
+destRoot = args.destination + "/" + args.root
 
 folder: str
 if args.folder is None:
