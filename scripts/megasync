@@ -85,6 +85,7 @@ def source_ls(basePath: str, element: Content) -> [Content]:
         list_mode = "-lr"
     else:
         list_mode = "-l"
+    debug("MEGA call:", 'mega-ls', list_mode, safe_path(basePath + '/' + element.path + '/' + element.name))
     lines = safe_call([
         'mega-ls',
         list_mode,
@@ -271,8 +272,8 @@ debug_mode = args.debug
 
 startMega()
 
-sourceRoot = args.root
-destRoot = args.destination + "/" + args.root
+sourceRoot = str(args.root[0])
+destRoot = args.destination + "/" + str(args.root[0])
 
 folder: str
 if args.folder is None:
