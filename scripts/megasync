@@ -14,6 +14,8 @@ import unicodedata
 # Globals
 _OLD_FILES = 'OLD_FILES'  # Const
 _WAIT_SECONDS: int = 2
+_BASE_TIMEOUT_MEGA: int = 10
+_MINIMUM_DOWNLOAD_SPEED: int = 1024*1024  # minimum expected speed per second
 _TOP_LEVELS: int = 1
 _FIRST_LEVEL_CONTINUE_FROM: str = ""
 _DRY_RUN: bool = False
@@ -58,18 +60,21 @@ class Content:
                '] fullname:[' + self.fullname + ']]'
 
 
-def safe_call(command, ignore_error=False):
-    try:
-        debug("COMMAND", command)
-        if ignore_error:
-            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        else:
-            proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-        result = proc.stdout.read()
-        return result
-    except subprocess.CalledProcessError:
-        print("--- ERROR ---")
-        exit(1)
+def safe_call(command, seconds_timeout: int = None, ignore_error=False):
+    while True:
+        try:
+            debug("COMMAND", command)
+            if ignore_error:
+                proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            else:
+                proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+            result, errs = proc.communicate(timeout=seconds_timeout)
+            return result
+        except subprocess.CalledProcessError:
+            print("--- ERROR ---")
+            exit(1)
+        except subprocess.TimeoutExpired:
+            print("--- OPERATION TIMED OUT ---")
 
 
 def safe_path(path: str) -> str:
@@ -90,7 +95,7 @@ def source_ls(basePath: str, element: Content) -> [Content]:
         'mega-ls',
         list_mode,
         safe_path(basePath + '/' + element.path + '/' + element.name)
-    ])
+        ], seconds_timeout=_BASE_TIMEOUT_MEGA)
     index: int = 0
     contents: [] = []
     debug("MEGA result:", lines)
@@ -131,7 +136,8 @@ def destination_ls(basePath: str, element: Content) -> [Content]:
         'ls',
         list_mode,
         safe_path(basePath + '/' + element.path + '/' + element.name)
-    ], ignore_error=True)
+        ],
+        ignore_error=True)
     index: int = 0
     contents: [] = []
     content_path = element.path + '/' + element.name
@@ -167,6 +173,11 @@ def createfolderifneeded(path):
             os.makedirs(path)
 
 
+# Calculate safe but not too big timeout for a file download
+def calc_download_timeout(size: int):
+    return (int(size)/_MINIMUM_DOWNLOAD_SPEED) + _BASE_TIMEOUT_MEGA
+
+
 # Download file from source
 def download(source_root: str, dest_root: str, content: Content):
     if not _DRY_RUN:
@@ -176,7 +187,7 @@ def download(source_root: str, dest_root: str, content: Content):
             'mega-get',
             source_root + '/' + content.path + '/' + content.name,
             dest_root + '/' + content.path
-        ])
+        ], seconds_timeout=calc_download_timeout(content.size))
         print(result.decode('utf-8'))
 
 
@@ -199,7 +210,7 @@ def debug(*info):
 def startMega():
     if 'MEGAcmd' not in os.environ['PATH']:
         os.environ['PATH'] += ':/Applications/MEGAcmd.app/Contents/MacOS'
-    safe_call(['mega-version'])
+    safe_call(['mega-version'], _BASE_TIMEOUT_MEGA)
 
 
 parser = argparse.ArgumentParser(
@@ -306,7 +317,7 @@ while len(pending) > 0:
         sourceContents = source_ls(sourceRoot, element)
     destinationContents = destination_ls(destRoot, element)
 
-    # First version of this program used a simultaneous loop through booth list.
+    # First version of this program used a simultaneous loop through both lists
     # But as it's prone to errors and more difficult to debug and refactor... just abandoned it in favor of sequential.
     for sourceItem in sourceContents:
         try:
