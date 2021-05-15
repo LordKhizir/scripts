@@ -10,6 +10,7 @@ import subprocess
 import textwrap
 import time
 import unicodedata
+from enum import Enum
 
 # Globals
 _OLD_FILES = 'OLD_FILES'  # Const
@@ -60,21 +61,28 @@ class Content:
                '] fullname:[' + self.fullname + ']]'
 
 
-def safe_call(command, seconds_timeout: int = None, ignore_error=False):
-    while True:
-        try:
-            debug("COMMAND", command)
-            if ignore_error:
-                proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            else:
-                proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-            result, errs = proc.communicate(timeout=seconds_timeout)
-            return result
-        except subprocess.CalledProcessError:
-            print("--- ERROR ---")
-            exit(1)
-        except subprocess.TimeoutExpired:
-            print("--- OPERATION TIMED OUT ---")
+class Status(Enum):
+        UNKNOWN = None
+        OK = 0
+        ERROR = -1
+        TIMEOUT = 1
+
+
+def safe_call(command, seconds_timeout: int = None, ignore_error=False) -> (Status, bytes):
+    try:
+        debug("COMMAND", command)
+        if ignore_error:
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        else:
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+        result, errs = proc.communicate(timeout=seconds_timeout)
+        return Status.OK, result
+    except subprocess.CalledProcessError:
+        print("--- ERROR ---")
+        exit(1)
+    except subprocess.TimeoutExpired:
+        print("⏱  OPERATION TIMED OUT")
+        return Status.TIMEOUT, None
 
 
 def safe_path(path: str) -> str:
@@ -91,11 +99,13 @@ def source_ls(basePath: str, element: Content) -> [Content]:
     else:
         list_mode = "-l"
     debug("MEGA call:", 'mega-ls', list_mode, safe_path(basePath + '/' + element.path + '/' + element.name))
-    lines = safe_call([
-        'mega-ls',
-        list_mode,
-        safe_path(basePath + '/' + element.path + '/' + element.name)
-        ], seconds_timeout=_BASE_TIMEOUT_MEGA)
+    status: Status = Status.UNKNOWN
+    while status != status.OK:
+        status, lines = safe_call([
+            'mega-ls',
+            list_mode,
+            safe_path(basePath + '/' + element.path + '/' + element.name)
+            ], seconds_timeout=_BASE_TIMEOUT_MEGA)
     index: int = 0
     contents: [] = []
     debug("MEGA result:", lines)
@@ -132,12 +142,14 @@ def destination_ls(basePath: str, element: Content) -> [Content]:
         list_mode = "-loR"
     else:
         list_mode = "-lo"
-    lines = safe_call([
-        'ls',
-        list_mode,
-        safe_path(basePath + '/' + element.path + '/' + element.name)
-        ],
-        ignore_error=True)
+    status: Status = Status.UNKNOWN
+    while status != status.OK:
+        status, lines = safe_call([
+            'ls',
+            list_mode,
+            safe_path(basePath + '/' + element.path + '/' + element.name)
+            ],
+            ignore_error=True)
     index: int = 0
     contents: [] = []
     content_path = element.path + '/' + element.name
@@ -182,12 +194,20 @@ def calc_download_timeout(size: int):
 def download(source_root: str, dest_root: str, content: Content):
     if not _DRY_RUN:
         createfolderifneeded(safe_path(dest_root + '/' + content.path))
-        time.sleep(_WAIT_SECONDS)
-        result = safe_call([
-            'mega-get',
-            source_root + '/' + content.path + '/' + content.name,
-            dest_root + '/' + content.path
-        ], seconds_timeout=calc_download_timeout(content.size))
+        status: Status = Status.UNKNOWN
+        while status != Status.OK:
+            time.sleep(_WAIT_SECONDS)
+            status, result = safe_call([
+                'mega-get',
+                source_root + '/' + content.path + '/' + content.name,
+                dest_root + '/' + content.path
+            ], seconds_timeout=calc_download_timeout(content.size))
+            if status == Status.TIMEOUT:
+                # Maybe the process did not respond, but it was completed... so remove destination if it exists
+                # and then retry
+                destination_file_path = safe_path(dest_root + '/' + content.path + '/' + content.name)
+                if os.path.exists(destination_file_path):
+                    os.remove(destination_file_path)
         print(result.decode('utf-8'))
 
 
@@ -210,7 +230,9 @@ def debug(*info):
 def startMega():
     if 'MEGAcmd' not in os.environ['PATH']:
         os.environ['PATH'] += ':/Applications/MEGAcmd.app/Contents/MacOS'
-    safe_call(['mega-version'], _BASE_TIMEOUT_MEGA)
+    status: Status = Status.UNKNOWN
+    while status != Status.OK:
+        status, result = safe_call(['mega-version'], _BASE_TIMEOUT_MEGA)
 
 
 parser = argparse.ArgumentParser(
